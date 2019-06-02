@@ -27,6 +27,7 @@ import * as urlSearchParams from "./url_search_params";
 import * as workers from "./workers";
 import * as performanceUtil from "./performance";
 
+import * as streams from "./streams/streams";
 import * as request from "./request";
 //import * as response from "./response";
 
@@ -115,6 +116,16 @@ export type TextEncoder = textEncoding.TextEncoder;
 window.TextDecoder = textEncoding.TextDecoder;
 export type TextDecoder = textEncoding.TextDecoder;
 
+window.ReadableStream = streams.ReadableStream;
+export type ReadableStream = domTypes.ReadableStreamConstructor;
+window.WritableStream = streams.WritableStream;
+export type WritableStream= domTypes.WritableStreamConstructor;
+window.TransformStream = streams.TransformStream;
+export type TransformStream = domTypes.TransformStream;
+window.ByteLengthQueuingStrategy = streams.ByteLengthQueuingStrategy;
+export type ByteLengthQueuingStrategy = domTypes.ByteLengthQueuingStrategy;
+window.CountQueuingStrategy = streams.CountQueuingStrategy;
+export type CountQueuingStrategy = domTypes.CountQueuingStrategy;
 window.Request = request.Request;
 export type Request = request.Request;
 

@@ -12,6 +12,7 @@ import { read, close } from "./files";
 import { Buffer } from "./buffer";
 import { FormData } from "./form_data";
 import { URLSearchParams } from "./url_search_params";
+import { ReadableStream } from "@stardazed/streams";
 
 function getHeaderValueParams(value: string): Map<string, string> {
   const params = new Map();
@@ -30,14 +31,16 @@ function hasHeaderValueOf(s: string, value: string): boolean {
   return new RegExp(`^${value}[\t\s]*;?`).test(s);
 }
 
-class Body implements domTypes.Body, domTypes.ReadableStream, io.ReadCloser {
+class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.ReadCloser {
   bodyUsed = false;
   private _bodyPromise: null | Promise<ArrayBuffer> = null;
   private _data: ArrayBuffer | null = null;
   readonly locked: boolean = false; // TODO
-  readonly body: null | Body = this;
+  readonly body: null | domTypes.ReadableStream<Uint8Array>;
 
-  constructor(private rid: number, readonly contentType: string) {}
+  constructor(private rid: number, readonly contentType: string) {
+    this.body = new ReadableStream<Uint8Array>();
+  }
 
   private async _bodyBuffer(): Promise<ArrayBuffer> {
     assert(this._bodyPromise == null);
@@ -227,15 +230,41 @@ class Body implements domTypes.Body, domTypes.ReadableStream, io.ReadCloser {
   }
 
   async cancel(): Promise<void> {
-    return notImplemented();
+    return this.body!.cancel();
   }
 
-  getReader(): domTypes.ReadableStreamReader {
-    return notImplemented();
+  getReader() {
+    return this.body!.getReader();
+  }
+  
+  pipeTo(
+    dest: domTypes.WritableStream<Uint8Array>,
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?:domTypes.AbortSignal;
+    }
+  ): Promise<void>{
+    return this.body!.pipeTo(dest, opts);
+  }
+  pipeThrough(
+    sources: {
+      writable: domTypes.WritableStream<Uint8Array>;
+      readable: domTypes.ReadableStream<Uint8Array>;
+    },
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?: domTypes.AbortSignal;
+    }
+  ): domTypes.ReadableStream<Uint8Array> {
+    return this.body!.pipeThrough(sources, opts);
   }
 
   tee(): [domTypes.ReadableStream, domTypes.ReadableStream] {
-    return notImplemented();
+    return this.body!.tee();
   }
 }
 

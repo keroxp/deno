@@ -10,10 +10,6 @@
 import * as testing from "./deps/https/deno.land/std/testing/mod.ts";
 import {
   assert,
-  assertEquals
-} from "./deps/https/deno.land/std/testing/asserts.ts";
-export {
-  assert,
   assertEquals,
   assertNotEquals,
   assertStrictEq
