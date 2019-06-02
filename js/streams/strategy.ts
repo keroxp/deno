@@ -1,7 +1,7 @@
 import * as domTypes from "../dom_types";
 export class ByteLengthQueuingStrategy
-  implements domTypes.ByteLengthQueuingStrategy {
-  constructor(opts?: { highWaterMark?: number }) {
+  implements domTypes.QueuingStrategy {
+  constructor({ highWaterMark }: {highWaterMark?: number}) {
     this.highWaterMark = highWaterMark;
   }
 
@@ -12,14 +12,14 @@ export class ByteLengthQueuingStrategy
   }
 }
 
-export class CountQueuingStrategy implements domTypes.CountQueuingStrategy {
+export class CountQueuingStrategy implements domTypes.QueuingStrategy {
   constructor({ highWaterMark }: { highWaterMark?: number }) {
     this.highWaterMark = highWaterMark;
   }
 
   highWaterMark?: number;
 
-  size(_): number {
+  size(): number {
     return 1;
   }
 }

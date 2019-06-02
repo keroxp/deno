@@ -356,7 +356,10 @@ export interface WritableStreamConstructor<T = any> extends WritableStream<T> {
     strategy?: QueuingStrategy
   ): WritableStream<T>
 }
-export interface WritableStreamDefaultController<T=any> extends WritableStreamConstructor<T> {}
+export interface WritableStreamController<T> {
+  error(e?: any) : void
+}
+export interface WritableStreamDefaultController<T=any> extends WritableStreamController<T> {}
 export interface UnderlyingSink<T> {
   start?: StartAlgorithm;
   write?: WriteAlgorithm<T>;

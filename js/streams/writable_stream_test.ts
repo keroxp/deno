@@ -1,5 +1,5 @@
-import { assertEqual } from "https://deno.land/x/pretty_assert/mod.ts";
-import { test } from "https://deno.land/x/testing@v0.2.6/mod.ts";
+import { assertEquals } from "../deps/https/deno.land/std/testing/asserts"
+import { test } from "../test_util"
 import { WritableStream } from "./writable_stream";
 import { ReadableStream } from "./readable_stream";
 

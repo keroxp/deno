@@ -1,7 +1,6 @@
-import { assertEqual, test } from "https://deno.land/x/testing@v0.2.6/mod.ts";
-import { ReadableStream } from "./readable_stream.ts";
-import { ReadableStreamBYOBReader } from "./readable_stream_byob_reader.ts";
-import { ReadableStreamDefaultReader } from "./readable_stream_reader.ts";
+import { test } from "../test_util";
+import { assertEquals } from "../deps/https/deno.land/std/testing/asserts"
+import { ReadableStream,ReadableStreamBYOBReader,ReadableStreamDefaultReader } from "./readable_stream";
 
 test(async function testReadableStream() {
   const src = [0, 1, 2, 3, 4, 5, 6];
@@ -22,9 +21,9 @@ test(async function testReadableStream() {
   for (let i = 0; i < src.length + 1; i++) {
     const { value, done } = await reader.read();
     if (i < 7) {
-      assertEqual(value, i);
+      assertEquals(value, i);
     } else {
-      assertEqual(true, done);
+      assertEquals(true, done);
     }
   }
 });
@@ -54,9 +53,9 @@ test(async function testReadableStream2() {
   for (let i = 0; i < src.length + 1; i += 2) {
     const { value, done } = await reader.read();
     if (i < src.length) {
-      assertEqual(value, [i, i + 1]);
+      assertEquals(value, [i, i + 1]);
     } else {
-      assertEqual(true, done);
+      assertEquals(true, done);
     }
   }
 });
@@ -73,17 +72,17 @@ test(async function testReadableStream3() {
     }
   });
   const reader = stream.getReader({ mode: "byob" });
-  assertEqual(reader.constructor, ReadableStreamBYOBReader);
+  assertEquals(reader.constructor, ReadableStreamBYOBReader);
   const buf = new Uint8Array(4);
   const res1 = await reader.read(buf);
-  assertEqual(res1.done, false);
-  assertEqual([...buf], [0, 1, 2, 3]);
+  assertEquals(res1.done, false);
+  assertEquals([...buf], [0, 1, 2, 3]);
   const res2 = await reader.read(buf);
-  assertEqual(res2.done, false);
-  assertEqual([...buf], [4, 5, 6, 7]);
+  assertEquals(res2.done, false);
+  assertEquals([...buf], [4, 5, 6, 7]);
   const res3 = await reader.read(buf);
-  assertEqual(res3.done, true);
-  assertEqual(stream.state, "closed");
+  assertEquals(res3.done, true);
+  assertEquals(stream.state, "closed");
 });
 
 test(async function testReadableStream4() {
@@ -98,17 +97,17 @@ test(async function testReadableStream4() {
     }
   });
   const reader = stream.getReader({ mode: "byob" });
-  assertEqual(reader.constructor, ReadableStreamBYOBReader);
+  assertEquals(reader.constructor, ReadableStreamBYOBReader);
   const buf = new Uint8Array(2);
   const res1 = await reader.read(buf);
-  assertEqual(res1.done, false);
+  assertEquals(res1.done, false);
   let view = new DataView(buf.buffer);
-  assertEqual(view.getInt16(0, true), 0x1234);
+  assertEquals(view.getInt16(0, true), 0x1234);
   const res2 = await reader.read(buf);
   view = new DataView(buf.buffer);
-  assertEqual(res2.done, false);
-  assertEqual(view.getInt16(0, true), 0x5678);
+  assertEquals(res2.done, false);
+  assertEquals(view.getInt16(0, true), 0x5678);
   const res3 = await reader.read(buf);
-  assertEqual(res3.done, true);
-  assertEqual(stream.state, "closed");
+  assertEquals(res3.done, true);
+  assertEquals(stream.state, "closed");
 });
