@@ -12,7 +12,7 @@ import { read, close } from "./files";
 import { Buffer } from "./buffer";
 import { FormData } from "./form_data";
 import { URLSearchParams } from "./url_search_params";
-import { ReadableStream } from "@stardazed/streams";
+import { ReadableStream } from "./readable_stream";
 
 function getHeaderValueParams(value: string): Map<string, string> {
   const params = new Map();
@@ -31,7 +31,8 @@ function hasHeaderValueOf(s: string, value: string): boolean {
   return new RegExp(`^${value}[\t\s]*;?`).test(s);
 }
 
-class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.ReadCloser {
+class Body
+  implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.ReadCloser {
   bodyUsed = false;
   private _bodyPromise: null | Promise<ArrayBuffer> = null;
   private _data: ArrayBuffer | null = null;
@@ -236,16 +237,16 @@ class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.Rea
   getReader() {
     return this.body!.getReader();
   }
-  
+
   pipeTo(
     dest: domTypes.WritableStream<Uint8Array>,
     opts?: {
       preventClose?: boolean;
       preventAbort?: boolean;
       preventCancel?: boolean;
-      signal?:domTypes.AbortSignal;
+      signal?: domTypes.AbortSignal;
     }
-  ): Promise<void>{
+  ): Promise<void> {
     return this.body!.pipeTo(dest, opts);
   }
   pipeThrough(

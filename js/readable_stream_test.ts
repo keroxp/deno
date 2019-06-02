@@ -1,6 +1,10 @@
-import { test } from "../test_util";
-import { assertEquals } from "../deps/https/deno.land/std/testing/asserts"
-import { ReadableStream,ReadableStreamBYOBReader,ReadableStreamDefaultReader } from "./readable_stream";
+import { test } from "./test_util";
+import { assertEquals } from "./deps/https/deno.land/std/testing/asserts";
+import {
+  ReadableStream,
+  ReadableStreamBYOBReader,
+  ReadableStreamDefaultReader
+} from "./readable_stream";
 
 test(async function testReadableStream() {
   const src = [0, 1, 2, 3, 4, 5, 6];

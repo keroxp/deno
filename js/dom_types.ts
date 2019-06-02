@@ -250,21 +250,21 @@ export interface AbortSignal extends EventTarget {
   ): void;
 }
 export interface ReadableStreamConstructor<T = any> extends ReadableStream<T> {
-  new(
+  new (
     underlyingSource?: UnderlyingSource<T>,
     strategy?: QueuingStrategy
-  ): ReadableStream<T>
-  prototype: ReadableStream<T>
+  ): ReadableStream<T>;
+  prototype: ReadableStream<T>;
 }
 
-export interface ReadableStream<T=any> {
+export interface ReadableStream<T = any> {
   readonly locked: boolean;
   cancel(reason?: any): Promise<void>;
   getReader<M extends "byob">(params?: {
-    mode?: M
+    mode?: M;
   }): {
-    byob: ReadableStreamBYOBReader,
-    undefined: ReadableStreamReader<T>
+    byob: ReadableStreamBYOBReader;
+    undefined: ReadableStreamReader<T>;
   }[M];
   pipeThrough(
     sources: {
@@ -277,7 +277,7 @@ export interface ReadableStream<T=any> {
       preventCancel?: boolean;
       signal?: AbortSignal;
     }
-  ): ReadableStream<T>
+  ): ReadableStream<T>;
   pipeTo(
     dest: WritableStream<T>,
     opts?: {
@@ -286,7 +286,7 @@ export interface ReadableStream<T=any> {
       preventCancel?: boolean;
       signal?: AbortSignal;
     }
-  ): Promise<void>
+  ): Promise<void>;
   tee(): [ReadableStream<T>, ReadableStream<T>];
 }
 
@@ -295,72 +295,81 @@ export interface QueuingStrategy {
   readonly size?: (chunk: any) => number;
 }
 
-export interface ByteLengthQueuingStrategy extends QueuingStrategy {
-  new(opts?: {highWaterMark?: number}): ByteLengthQueuingStrategy;
+export interface ByteLengthQueuingStrategyConstructor extends QueuingStrategy {
+  new (opts?: { highWaterMark?: number }): QueuingStrategy;
+  prototype: QueuingStrategy;
 }
-export interface CountQueuingStrategy extends QueuingStrategy {
-  new(opts?: {highWaterMark?: number}): CountQueuingStrategy;
+export interface CountQueuingStrategyConstructor extends QueuingStrategy {
+  new (opts?: { highWaterMark?: number }): QueuingStrategy;
+  prototype: QueuingStrategy;
 }
 
-export type UnderlyingSource<T = any> = {
+export interface UnderlyingSource<T = any> {
   type?: "bytes";
   autoAllocateChunkSize?: number;
   start?: (controller: ReadableStreamController<T>) => any;
   pull?: (controller: ReadableStreamController<T>) => any;
   cancel?: CancelAlgorithm;
-};
+}
 
 export type PullAlgorithm = () => Promise<any>;
 export type SizeAlgorithm = (chunk: any) => number;
 export type StartAlgorithm = () => any;
 export type CancelAlgorithm = (reason?: any) => Promise<any>;
-export type WriteAlgorithm<T> = (chunk: T) => any|Promise<any>;
+export type WriteAlgorithm<T> = (chunk: T) => any | Promise<any>;
 export type CloseAlgorithm = () => any;
-export type AbortAlgorithm = (reason?: any) => unknown;
+export type AbortAlgorithm = (reason?: any) => Promise<any>;
 
 export interface ReadableStreamController<T> {
   readonly byobRequest?: ReadableStreamBYOBRequest;
-  readonly desiredSize: number|null;
+  readonly desiredSize: number | null;
   close(): void;
   enqueue(chunk: T): void;
   error(e: any): void;
 }
-export interface ReadableByteStreamController extends ReadableStreamConstructor<Uint8Array> {}
-export interface ReadableStreamDefaultController<T> extends ReadableStreamController<T> {}
+export type ReadableByteStreamController = ReadableStreamConstructor<
+  Uint8Array
+>;
+export type ReadableStreamDefaultController<T> = ReadableStreamController<T>;
 export interface ReadableStreamBYOBRequest {
-  readonly view: Uint8Array;
+  readonly view?: Uint8Array;
   respond(bytesWritten: number): void;
   respondWithNewView(view: Uint8Array): void;
 }
 
 export interface ReadableStreamReader<T = any> {
-  closed: Promise<void>
+  closed: Promise<void>;
   cancel(reason?: any): Promise<void>;
   read(): Promise<ReadableStreamReadResult<T>>;
   releaseLock(): Promise<void>;
 }
 
 export interface ReadableStreamBYOBReader {
-  closed: Promise<void>
+  closed: Promise<void>;
   cancel(reason?: any): Promise<void>;
-  read<T extends ArrayBufferView>(view: T): Promise<ReadableStreamReadResult<T>>;
+  read<T extends ArrayBufferView>(
+    view: T
+  ): Promise<ReadableStreamReadResult<T>>;
   releaseLock(): Promise<void>;
 }
 
-export interface ReadableStreamDefaultReader<T=any> extends ReadableStreamReader<T> {}
+export type ReadableStreamDefaultReader<T> = ReadableStreamReader<T>;
 
-export type ReadableStreamReadResult<T> = { value?: T; done: boolean };
+export interface ReadableStreamReadResult<T> {
+  value?: T;
+  done: boolean;
+}
 export interface WritableStreamConstructor<T = any> extends WritableStream<T> {
-  new(
+  new (
     underlyingSink?: UnderlyingSink<T>,
     strategy?: QueuingStrategy
-  ): WritableStream<T>
-  prototype: WritableStreamConstructor<T>
+  ): WritableStream<T>;
+  prototype: WritableStreamConstructor<T>;
 }
 export interface WritableStreamController<T> {
-  error(e?: any) : void
+  error(e?: any): void;
 }
-export interface WritableStreamDefaultController<T=any> extends WritableStreamController<T> {}
+export type WritableStreamDefaultController<T> = WritableStreamController<T>;
 export interface UnderlyingSink<T> {
   start?: StartAlgorithm;
   write?: WriteAlgorithm<T>;
@@ -369,25 +378,25 @@ export interface UnderlyingSink<T> {
   type?: string;
 }
 
-export interface WritableStream<T=any> {
+export interface WritableStream<T = any> {
   readonly locked: boolean;
-  abort(reason?: any): Promise<void>
-  getWriter(): WritableStreamWriter<T>
+  abort(reason?: any): Promise<void>;
+  getWriter(): WritableStreamDefaultWriter<T>;
 }
 
 export interface WritableStreamWriter<T> {
   readonly closed: Promise<void>;
-  readonly desiredSize: number|null;
+  readonly desiredSize: number | null;
   readonly ready: Promise<undefined>;
   abort(reason?: any): Promise<void>;
   close(): Promise<void>;
   releaseLock(): void;
   write(chunk: T): Promise<void>;
 }
-export interface WritableStreamDefaultWriter<T> extends WritableStreamWriter<T> {}
+export type WritableStreamDefaultWriter<T> = WritableStreamWriter<T>;
 
 export interface TransformStreamController<T> {
-  readonly desiredSize: number|null;
+  readonly desiredSize: number | null;
   enqueue(chunk: T): void;
   error(reason?: any): void;
   terminate(): void;
@@ -396,31 +405,38 @@ export interface TransformStreamController<T> {
 export type FlushAlgorithm = () => Promise<any>;
 export type TransformAlgorithm<T> = (chunk: T) => Promise<any>;
 
-export type Transformer<T> = {
+export interface Transformer<T> {
   start?: (controller: TransformStreamController<T>) => any;
-  transform?: (chunk: T, controller: TransformStreamController<T>) => Promise<any>;
+  transform?: (
+    chunk: T,
+    controller: TransformStreamController<T>
+  ) => Promise<any>;
   flush?: (controller: TransformStreamController<T>) => Promise<any>;
   writableType?: undefined;
   readableType?: undefined;
-};
+}
 
-export interface TransformStream<T=any> {
-  new(
+export interface TransformStreamConstructor<T = any>
+  extends TransformStream<T> {
+  new (
     transformer: Transformer<T>,
     writableStrategy: QueuingStrategy,
     readableStrategy: QueuingStrategy
-  ): TransformStream<T> 
-  readonly readable: ReadableStream<T>
-  readonly writable: WritableStream<T>
+  ): TransformStream<T>;
 }
 
-export interface TransformStreamController<T=any> {
-  readonly desiredSize: number|null;
+export interface TransformStream<T = any> {
+  readonly readable: ReadableStream<T>;
+  readonly writable: WritableStream<T>;
+}
+
+export interface TransformStreamController<T = any> {
+  readonly desiredSize: number | null;
   enqueue(chunk: T): void;
   error(reason?: any): void;
   terminate(): void;
 }
-export interface TransformStreamDefaultController<T> extends TransformStreamController<T> {}
+export type TransformStreamDefaultController<T> = TransformStreamController<T>;
 
 export interface EventListenerObject {
   handleEvent(evt: Event): void;
@@ -590,7 +606,7 @@ export interface ResponseInit {
 }
 
 export const PromiseState = Symbol("PromiseState");
-export type Defer<T=void,E=any> = {
+export type Defer<T = void, E = any> = {
   resolve(t?: T): void;
   reject(e?: E): void;
   [PromiseState]: string;

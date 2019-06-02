@@ -1,4 +1,3 @@
-
 import * as readableStream from "./readable_stream";
 import {
   CreateReadableStream,
@@ -7,11 +6,15 @@ import {
   ReadableStreamDefaultControllerCanCloseOrEnqueue,
   ReadableStreamDefaultControllerHasBackpressure,
   ReadableStreamDefaultControllerGetDesiredSize,
-  ReadableStreamDefaultController, ReadableStreamDefaultControllerEnqueue,
+  ReadableStreamDefaultController,
+  ReadableStreamDefaultControllerEnqueue
 } from "./readable_stream";
-import { defer } from "../defer";
+import { defer } from "./defer";
 import * as writableStream from "./writable_stream";
-import {  CreateWritableStream,WritableStreamDefaultControllerErrorIfNeeded } from "./writable_stream";
+import {
+  CreateWritableStream,
+  WritableStreamDefaultControllerErrorIfNeeded
+} from "./writable_stream";
 import {
   InvokeOrNoop,
   IsNonNegativeNumber,
@@ -21,9 +24,15 @@ import {
   CreateAlgorithmFromUnderlyingMethod
 } from "./misc";
 import { Assert } from "./misc";
-import * as domTypes from "../dom_types";
+import * as domTypes from "./dom_types";
 
 export class TransformStream<T = any> {
+  backpressure?: boolean;
+  backpressureChangePromise?: domTypes.Defer<any>;
+  _readable?: readableStream.ReadableStream<T>;
+  transformStreamController?: TransformStreamDefaultController<T>;
+  _writable?: writableStream.WritableStream<T>;
+
   constructor(
     transformer: domTypes.Transformer<T>,
     writableStrategy: domTypes.QueuingStrategy,
@@ -81,12 +90,6 @@ export class TransformStream<T = any> {
     }
     return this._writable;
   }
-
-  backpressure?: boolean;
-  backpressureChangePromise?: domTypes.Defer<any>;
-  _readable?:  readableStream.ReadableStream<T>;
-  transformStreamController?: TransformStreamDefaultController<T>;
-  _writable?: writableStream.WritableStream<T>;
 }
 
 export function CreateTransformStream<T>(
@@ -162,15 +165,13 @@ export function InitializeTransformStream<T>(
   stream.transformStreamController = void 0;
 }
 
-export function IsTransformStream(x): x is TransformStream {
+export function IsTransformStream(x: any): x is TransformStream {
   return typeof x === "object" && x.hasOwnProperty("transformStreamController");
 }
 
-export function TransformStreamError(
-  stream: TransformStream,
-  e?: any) {
+export function TransformStreamError(stream: TransformStream, e?: any) {
   ReadableStreamDefaultControllerError(
-    stream.readable.readableStreamController,
+    stream.readable!.readableStreamController!,
     e
   );
   TransformStreamErrorWritableAndUnblockWrite(stream, e);
@@ -178,13 +179,13 @@ export function TransformStreamError(
 
 export function TransformStreamErrorWritableAndUnblockWrite(
   stream: TransformStream,
-  e
+  e?: any
 ) {
   TransformStreamDefaultControllerClearAlgorithms(
-    stream.transformStreamController
+    stream.transformStreamController!
   );
   WritableStreamDefaultControllerErrorIfNeeded(
-    stream.writable.writableStreamController,
+    stream.writable!.writableStreamController!,
     e
   );
   if (stream.backpressure) {
@@ -204,7 +205,6 @@ export function TransformStreamSetBackpressure(
   stream.backpressure = backpressure;
 }
 
-
 export class TransformStreamDefaultController<T = any>
   implements domTypes.TransformStreamController<T> {
   constructor() {
@@ -213,13 +213,13 @@ export class TransformStreamDefaultController<T = any>
     );
   }
 
-  get desiredSize(): number|null {
+  get desiredSize(): number | null {
     if (!IsTransformStreamDefaultController(this)) {
       throw new TypeError("this is not TransformStreamDefaultController");
     }
-    return ReadableStreamDefaultControllerGetDesiredSize(
-      this.controlledTransformStream.readable.readableStreamController as ReadableStreamDefaultController<T>
-    );
+    return ReadableStreamDefaultControllerGetDesiredSize(this
+      .controlledTransformStream!.readable!
+      .readableStreamController as ReadableStreamDefaultController<T>);
   }
 
   enqueue(chunk: T) {
@@ -313,10 +313,11 @@ export function TransformStreamDefaultControllerClearAlgorithms(
 
 export function TransformStreamDefaultControllerEnqueue<T>(
   controller: TransformStreamDefaultController<T>,
-  chunk
+  chunk: T
 ) {
-  const stream = controller.controlledTransformStream;
-  const readableController = stream.readable.readableStreamController as ReadableStreamDefaultController<T>;
+  const stream = controller.controlledTransformStream!;
+  const readableController = stream.readable!
+    .readableStreamController as ReadableStreamDefaultController<T>;
   if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(readableController)) {
     throw new TypeError("readable stream controller cannot close on enqueue");
   }
@@ -324,7 +325,7 @@ export function TransformStreamDefaultControllerEnqueue<T>(
     ReadableStreamDefaultControllerEnqueue(readableController, chunk);
   } catch (e) {
     TransformStreamErrorWritableAndUnblockWrite(stream, e);
-    throw stream.readable.storedError;
+    throw stream.readable!.storedError;
   }
   const backpressure = ReadableStreamDefaultControllerHasBackpressure(
     readableController
@@ -337,17 +338,17 @@ export function TransformStreamDefaultControllerEnqueue<T>(
 
 export function TransformStreamDefaultControllerError(
   controller: TransformStreamDefaultController,
-  e
+  e?: any
 ) {
-  TransformStreamError(controller.controlledTransformStream, e);
+  TransformStreamError(controller.controlledTransformStream!, e);
 }
 
 export function TransformStreamDefaultControllerPerformTransform<T>(
   controller: TransformStreamDefaultController<T>,
   chunk: T
 ) {
-  controller.transformAlgorithm(chunk).catch(r => {
-    TransformStreamError(controller.controlledTransformStream, r);
+  controller.transformAlgorithm!(chunk).catch(r => {
+    TransformStreamError(controller.controlledTransformStream!, r);
     throw r;
   });
 }
@@ -355,9 +356,14 @@ export function TransformStreamDefaultControllerPerformTransform<T>(
 export function TransformStreamDefaultControllerTerminate<T>(
   controller: TransformStreamDefaultController<T>
 ) {
-  const stream = controller.controlledTransformStream;
-  const readableController = stream.readable.readableStreamController;
-  if (ReadableStreamDefaultControllerCanCloseOrEnqueue(readableController as ReadableStreamDefaultController<T>)) {
+  const stream = controller.controlledTransformStream!;
+  const readableController = stream.readable!
+    .readableStreamController! as ReadableStreamDefaultController<T>;
+  if (
+    ReadableStreamDefaultControllerCanCloseOrEnqueue(
+      readableController as ReadableStreamDefaultController<T>
+    )
+  ) {
     ReadableStreamDefaultControllerClose(readableController);
   }
   const error = new TypeError("stream ended");
@@ -368,13 +374,13 @@ export function TransformStreamDefaultSinkWriteAlgorithm<T>(
   stream: TransformStream<T>,
   chunk: T
 ) {
-  Assert(stream.writable.state === "writable");
-  const controller = stream.transformStreamController;
+  Assert(stream.writable!.state === "writable");
+  const controller = stream.transformStreamController!;
   if (stream.backpressure) {
     const p = stream.backpressureChangePromise;
-    Assert(p !== void 0);
+    if (!p) throw new TypeError("backpressureChangePromise is undefined");
     return p.then(() => {
-      const writable = stream.writable;
+      const writable = stream.writable!;
       const { state } = writable;
       if (state === "erroring") {
         throw writable.storedError;
@@ -399,18 +405,22 @@ export async function TransformStreamDefaultSinkAbortAlgorithm(
 export function TransformStreamDefaultSinkCloseAlgorithm<T>(
   stream: TransformStream<T>
 ) {
-  const { readable } = stream;
-  const controller = stream.transformStreamController;
-  const flushPromise = controller.flushAlgorithm();
+  const readable = stream.readable!;
+  const controller = stream.transformStreamController!;
+  const flushPromise = controller.flushAlgorithm!();
   TransformStreamDefaultControllerClearAlgorithms(controller);
   return flushPromise
     .then(() => {
       if (readable.state === "errored") {
         throw readable.storedError;
       }
-      const readableController = readable.readableStreamController;
+      const readableController = readable.readableStreamController! as ReadableStreamDefaultController<
+        T
+      >;
       if (
-        ReadableStreamDefaultControllerCanCloseOrEnqueue(readableController as ReadableStreamDefaultController<T>)
+        ReadableStreamDefaultControllerCanCloseOrEnqueue(
+          readableController as ReadableStreamDefaultController<T>
+        )
       ) {
         ReadableStreamDefaultControllerClose(readableController);
       }
@@ -429,4 +439,3 @@ export function TransformStreamDefaultSourcePullAlgorithm(
   TransformStreamSetBackpressure(stream, false);
   return stream.backpressureChangePromise;
 }
-

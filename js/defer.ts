@@ -1,4 +1,4 @@
-import * as domTypes from "./dom_types"
+import * as domTypes from "./dom_types";
 export function defer<T = void, E = any>(): domTypes.Defer<T, E> {
   let res: (v: T) => void;
   let rej: (e: E) => void;
@@ -6,21 +6,21 @@ export function defer<T = void, E = any>(): domTypes.Defer<T, E> {
     res = resolve;
     rej = reject;
   });
-  const src = { 
+  const src = {
     resolve: (v: T) => {
       res(v);
-      src[domTypes.PromiseState] = "resolved"
+      src[domTypes.PromiseState] = "resolved";
     },
     reject: (e: E) => {
       rej(e);
       src[domTypes.PromiseState] = "rejected";
-    }, 
-    [domTypes.PromiseState]: "pending" 
+    },
+    [domTypes.PromiseState]: "pending"
   };
   return Object.assign(promise, src);
 }
 
-export function rejectDefer<T,E>(e:E): domTypes.Defer<T> {
+export function rejectDefer<T, E>(e: E): domTypes.Defer<T> {
   return Object.assign(Promise.reject(e), {
     resolve: () => {},
     reject: () => {},
@@ -28,7 +28,7 @@ export function rejectDefer<T,E>(e:E): domTypes.Defer<T> {
   });
 }
 
-export function resolveDefer<T>(e:T): domTypes.Defer<T> {
+export function resolveDefer<T>(e: T): domTypes.Defer<T> {
   return Object.assign(Promise.resolve(e), {
     resolve: () => {},
     reject: () => {},

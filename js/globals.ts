@@ -27,10 +27,10 @@ import * as urlSearchParams from "./url_search_params";
 import * as workers from "./workers";
 import * as performanceUtil from "./performance";
 
-import * as readableStream from "./streams/readable_stream";
-import * as writableStream from "./streams/writable_stream" ;
-import * as transformStream from "./streams/transform_stream";
-import * as queueingStrategy from "./streams/strategy";
+import * as readableStream from "./readable_stream";
+import * as writableStream from "./writable_stream";
+import * as transformStream from "./transform_stream";
+import * as queueingStrategy from "./queuing_strategy";
 import * as request from "./request";
 //import * as response from "./response";
 
@@ -122,13 +122,13 @@ export type TextDecoder = textEncoding.TextDecoder;
 window.ReadableStream = readableStream.ReadableStream;
 export type ReadableStream = domTypes.ReadableStreamConstructor;
 window.WritableStream = writableStream.WritableStream;
-export type WritableStream= domTypes.WritableStreamConstructor;
+export type WritableStream = domTypes.WritableStreamConstructor;
 window.TransformStream = transformStream.TransformStream;
-export type TransformStream = domTypes.TransformStream;
+export type TransformStream = domTypes.TransformStreamConstructor;
 window.ByteLengthQueuingStrategy = queueingStrategy.ByteLengthQueuingStrategy;
-export type ByteLengthQueuingStrategy = domTypes.ByteLengthQueuingStrategy;
+export type ByteLengthQueuingStrategy = domTypes.ByteLengthQueuingStrategyConstructor;
 window.CountQueuingStrategy = queueingStrategy.CountQueuingStrategy;
-export type CountQueuingStrategy = domTypes.CountQueuingStrategy;
+export type CountQueuingStrategy = domTypes.CountQueuingStrategyConstructor;
 window.Request = request.Request;
 export type Request = request.Request;
 

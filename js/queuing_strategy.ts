@@ -1,7 +1,6 @@
-import * as domTypes from "../dom_types";
-export class ByteLengthQueuingStrategy
-  implements domTypes.QueuingStrategy {
-  constructor({ highWaterMark }: {highWaterMark?: number}) {
+import * as domTypes from "./dom_types";
+export class ByteLengthQueuingStrategy implements domTypes.QueuingStrategy {
+  constructor({ highWaterMark }: { highWaterMark?: number }) {
     this.highWaterMark = highWaterMark;
   }
 

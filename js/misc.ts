@@ -1,11 +1,14 @@
-import * as domTypes from "../dom_types";
+import * as domTypes from "./dom_types";
 
-export interface Queueable {
-  queue: any[];
-  queueTotalSize: number;
+export interface Queueable<T> {
+  queue?: {
+    value: T;
+    size: number;
+  }[];
+  queueTotalSize?: number;
 }
 
-export function isQueuable(x): x is Queueable {
+export function isQueuable<T>(x: any): x is Queueable<T> {
   return (
     typeof x === "object" &&
     x.hasOwnProperty("queue") &&
@@ -13,37 +16,37 @@ export function isQueuable(x): x is Queueable {
   );
 }
 
-export function DequeueValue(container: Queueable) {
+export function DequeueValue<T>(container: Queueable<T>): T {
   Assert(isQueuable(container));
-  Assert(container.queue.length > 0);
-  const pair = container.queue.shift();
-  container.queueTotalSize -= pair.size;
-  if (container.queueTotalSize < 0) {
+  Assert(container.queue!.length > 0);
+  const pair = container.queue!.shift()!;
+  container.queueTotalSize! -= pair.size;
+  if (container.queueTotalSize! < 0) {
     container.queueTotalSize = 0;
   }
   return pair.value;
 }
 
-export function EnqueueValueWithSize(
-  container: Queueable,
+export function EnqueueValueWithSize<T>(
+  container: Queueable<T>,
   value: any,
   size: number
-) {
+): void {
   Assert(isQueuable(container));
   if (!Number.isFinite(size) || size < 0) {
     throw new RangeError("invalid size: " + size);
   }
-  container.queue.push({ value, size });
-  container.queueTotalSize += size;
+  container.queue!.push({ value, size });
+  container.queueTotalSize! += size;
 }
 
-export function PeekQueueValue(container: Queueable) {
+export function PeekQueueValue<T>(container: Queueable<T>): T {
   Assert(isQueuable(container));
-  Assert(container.queue.length > 0);
-  return container.queue[0].value;
+  Assert(container.queue!.length > 0);
+  return container.queue![0].value;
 }
 
-export function ResetQueue(container: Queueable) {
+export function ResetQueue<T>(container: Queueable<T>): void {
   container.queue = [];
   container.queueTotalSize = 0;
 }
@@ -71,7 +74,7 @@ export function CreateAlgorithmFromUnderlyingMethod<T>(
   return () => Promise.resolve(void 0);
 }
 
-export function InvokeOrNoop(O, P: string | symbol, ...args: any[]) {
+export function InvokeOrNoop(O: any, P: string | symbol, ...args: any[]) {
   Assert(O !== void 0);
   Assert(typeof P === "string" || typeof P === "symbol");
   Assert(Array.isArray(args));
@@ -82,15 +85,19 @@ export function InvokeOrNoop(O, P: string | symbol, ...args: any[]) {
   return method.call(O, ...args);
 }
 
-export function IsFiniteNonNegativeNumber(v) {
+export function IsFiniteNonNegativeNumber(v: any): boolean {
   return IsNonNegativeNumber(v) && v == Number.POSITIVE_INFINITY;
 }
 
-export function IsNonNegativeNumber(v) {
+export function IsNonNegativeNumber(v: any): boolean {
   return typeof v === "number" && !Number.isNaN(v) && v >= 0;
 }
 
-export function PromiseCall(F: { call: (o, ...args) => any }, V, ...args) {
+export function PromiseCall(
+  F: { call: (o: any, ...args: any[]) => any },
+  V: any,
+  ...args: any[]
+) {
   Assert(typeof F.call === "function");
   Assert(V !== void 0);
   Assert(Array.isArray(args));
@@ -118,26 +125,24 @@ export function ValidateAndNormalizeHighWaterMark(highWaterMark?: number) {
   return highWaterMark;
 }
 
-export function MakeSizeAlgorithmFromSizeFunction(size?: (chunk) => number) {
+export function MakeSizeAlgorithmFromSizeFunction<T>(
+  size?: (chunk: T) => number
+) {
   if (size === void 0) {
-    return _ => 1;
+    return () => 1;
   }
   if (typeof size.call !== "function") {
     throw new TypeError();
   }
-  return chunk => size.call(void 0, chunk);
+  return (chunk: T) => size.call(void 0, chunk);
 }
 
-export function IsDetachedBuffer(v): boolean {
+export function IsDetachedBuffer(v: unknown): boolean {
   return false;
 }
 
-
 export function Assert(cond: boolean, desc?: string) {
   if (cond === false) throw new Error(desc);
-}
-export function AssertDefineed<T>(x: T|undefined): x is T {
-  return x !== void 0;
 }
 
 export function isArrayBufferView(a: any): a is ArrayBufferView {
