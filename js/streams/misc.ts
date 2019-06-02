@@ -49,7 +49,7 @@ export function ResetQueue(container: Queueable) {
 }
 
 export function CreateAlgorithmFromUnderlyingMethod<T>(
-  underlyingObject: domTypes.UnderlyingSource,
+  underlyingObject: any,
   methodName: string | symbol,
   algoArgCount: number,
   ...extraArgs: any[]

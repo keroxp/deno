@@ -314,7 +314,7 @@ export type PullAlgorithm = () => Promise<any>;
 export type SizeAlgorithm = (chunk: any) => number;
 export type StartAlgorithm = () => any;
 export type CancelAlgorithm = (reason?: any) => Promise<any>;
-export type WriteAlgorithm<T> = (chunk: T) => Promise<any>;
+export type WriteAlgorithm<T> = (chunk: T) => any|Promise<any>;
 export type CloseAlgorithm = () => any;
 export type AbortAlgorithm = (reason?: any) => unknown;
 

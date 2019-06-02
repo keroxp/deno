@@ -22,9 +22,9 @@ test(async function testWritableStream() {
     }
   });
   await readable.pipeTo(writable);
-  assertEqual(chunks, src);
-  assertEqual(readable.state, "closed");
-  assertEqual(writable.state, "closed");
+  assertEquals(chunks, src);
+  assertEquals(readable.state, "closed");
+  assertEquals(writable.state, "closed");
 });
 
 test(async function testWritableStreamError() {
@@ -40,6 +40,6 @@ test(async function testWritableStreamError() {
     }
   });
   await readable.pipeTo(writable);
-  assertEqual(readable.state, "errored");
-  assertEqual(writable.state, "errored");
+  assertEquals(readable.state, "errored");
+  assertEquals(writable.state, "errored");
 });
