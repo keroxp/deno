@@ -1,6 +1,6 @@
 
 import * as readableStream from "./readable_stream";
-import { CreateReadableStream,ReadableStreamDefaultControllerError,  } from "./readable_stream";
+import { CreateReadableStream,ReadableStreamDefaultControllerError, ReadableStreamDefaultControllerClose, ReadableStreamDefaultControllerCanCloseOrEnqueue, ReadableStreamDefaultControllerHasBackpressure, ReadableStreamDefaultControllerGetDesiredSize,  } from "./readable_stream";
 import { defer } from "../defer";
 import * as writableStream from "./writable_stream";
 import {  CreateWritableStream,WritableStreamDefaultControllerErrorIfNeeded } from "./writable_stream";
@@ -8,7 +8,9 @@ import {
   InvokeOrNoop,
   IsNonNegativeNumber,
   MakeSizeAlgorithmFromSizeFunction,
-  ValidateAndNormalizeHighWaterMark
+  ValidateAndNormalizeHighWaterMark,
+  PromiseCall,
+  CreateAlgorithmFromUnderlyingMethod
 } from "./misc";
 import { Assert } from "./misc";
 import * as domTypes from "../dom_types";
@@ -58,14 +60,14 @@ export class TransformStream<T = any> {
     );
   }
 
-  get readable(): domTypes.ReadableStream<T> | undefined {
+  get readable(): readableStream.ReadableStream<T> | undefined {
     if (!IsTransformStream(this)) {
       throw new TypeError("this is not transform stream");
     }
     return this._readable;
   }
 
-  get writable(): domTypes.WritableStream<T> | undefined {
+  get writable(): writableStream.WritableStream<T> | undefined {
     if (!IsTransformStream(this)) {
       throw new TypeError("this is not transform stream");
     }
@@ -91,7 +93,7 @@ export function CreateTransformStream<T>(
   Assert(IsNonNegativeNumber(writableHighWaterMark));
   Assert(IsNonNegativeNumber(readableHighWaterMark));
   const stream = Object.create(TransformStream.prototype);
-  const startPromise = defer();
+  const startPromise = defer<void>();
   InitializeTransformStream(
     stream,
     startPromise,
@@ -107,7 +109,7 @@ export function CreateTransformStream<T>(
     transformAlgorithm,
     flushAlgorithm
   );
-  startPromise.resolve(startPromise());
+  startPromise.resolve();
   return stream;
 }
 
@@ -201,7 +203,7 @@ export class TransformStreamDefaultController<T = any>
     );
   }
 
-  get desiredSize() {
+  get desiredSize(): number|null {
     if (!IsTransformStreamDefaultController(this)) {
       throw new TypeError("this is not TransformStreamDefaultController");
     }
@@ -237,7 +239,7 @@ export class TransformStreamDefaultController<T = any>
 }
 
 export function IsTransformStreamDefaultController(
-  x
+  x: any
 ): x is TransformStreamDefaultController {
   return typeof x === "object" && x.hasOwnProperty("controlledTransformStream");
 }
@@ -309,7 +311,7 @@ export function TransformStreamDefaultControllerEnqueue(
     throw new TypeError("readable stream controller cannot close on enqueue");
   }
   try {
-    ReadableStreamDefaultControllerEnqueue(readableController, chunk);
+    TransformStreamDefaultControllerEnqueue(readableController, chunk);
   } catch (e) {
     TransformStreamErrorWritableAndUnblockWrite(stream, e);
     throw stream.readable.storedError;

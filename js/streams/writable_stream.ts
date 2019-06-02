@@ -1,9 +1,14 @@
-import { defer } from "../defer";
+import { defer, rejectDefer, resolveDefer } from "../defer";
 import {
   IsNonNegativeNumber,
   MakeSizeAlgorithmFromSizeFunction,
   ValidateAndNormalizeHighWaterMark,
-  ResetQueue
+  ResetQueue,
+  EnqueueValueWithSize,
+  PeekQueueValue,
+  DequeueValue,
+  InvokeOrNoop,
+  CreateAlgorithmFromUnderlyingMethod
 } from "./misc";
 import { Assert } from "./misc";
 import * as domTypes from "../dom_types";
@@ -20,8 +25,8 @@ export class WritableStream<T = any> {
   };
   state?: "writable" | "closed" | "erroring" | "errored";
   storedError?: Error;
-  writableStreamController?: domTypes.WritableStreamDefaultController<T>;
-  writer?: domTypes.WritableStreamDefaultWriter<T>;
+  writableStreamController?: WritableStreamDefaultController<T>;
+  writer?: WritableStreamDefaultWriter<T>;
   writeRequests?: domTypes.Defer<any>[];
   constructor(
     underlyingSink: domTypes.UnderlyingSink<T>,
@@ -72,8 +77,8 @@ export class WritableStream<T = any> {
 }
 
 export function AcquireWritableStreamDefaultWriter<T>(
-  stream: domTypes.WritableStream
-): domTypes.WritableStreamDefaultWriter<T> {
+  stream: WritableStream<T>
+): WritableStreamDefaultWriter<T> {
   return new WritableStreamDefaultWriter(stream);
 }
 
@@ -84,7 +89,7 @@ export function CreateWritableStream<T>(
   abortAlgorithm: domTypes.AbortAlgorithm,
   highWaterMark: number = 1,
   sizeAlgorithm: domTypes.SizeAlgorithm = () => 1
-) {
+): WritableStream<T> {
   Assert(IsNonNegativeNumber(highWaterMark));
   const stream = Object.create(WritableStream.prototype);
   InitializeWritableStream(stream);
@@ -99,6 +104,7 @@ export function CreateWritableStream<T>(
     highWaterMark,
     sizeAlgorithm
   });
+  return stream;
 }
 
 export function InitializeWritableStream(stream: WritableStream) {
@@ -340,6 +346,9 @@ export function WritableStreamUpdateBackpressure(
 
 export class WritableStreamDefaultWriter<T>
   implements domTypes.WritableStreamWriter<T> {
+  closedPromise?: domTypes.Defer<undefined>;
+  ownerWritableStream?: WritableStream;
+  readyPromise?: domTypes.Defer<undefined>;
   constructor(stream: WritableStream) {
     if (!IsWritableStream(stream)) {
       throw new TypeError("stream is not writable stream");
@@ -371,7 +380,7 @@ export class WritableStreamDefaultWriter<T>
     }
   }
 
-  get closed(): Promise<void> {
+  get closed(): Promise<undefined> {
     if (!IsWritableStreamDefaultWriter(this)) {
       return Promise.reject(
         new TypeError("this is not WritableStreamDefaultWriter")
@@ -380,7 +389,7 @@ export class WritableStreamDefaultWriter<T>
     return this.closedPromise;
   }
 
-  get desiredSize(): number {
+  get desiredSize(): number|null {
     if (!IsWritableStreamDefaultWriter(this)) {
       throw new TypeError("this is not WritableStreamDefaultWriter");
     }
@@ -445,10 +454,6 @@ export class WritableStreamDefaultWriter<T>
     }
     return WritableStreamDefaultWriterWrite(this, chunk);
   }
-
-  closedPromise: domTypes.Defer<any>;
-  ownerWritableStream: WritableStream;
-  readyPromise: domTypes.Defer<any>;
 }
 
 export function IsWritableStreamDefaultWriter<T>(
@@ -459,7 +464,7 @@ export function IsWritableStreamDefaultWriter<T>(
 
 export function WritableStreamDefaultWriterAbort<T>(
   writer: WritableStreamDefaultWriter<T>,
-  reason
+  reason?: any
 ) {
   Assert(writer.ownerWritableStream !== void 0);
   return WritableStreamAbort(writer.ownerWritableStream, reason);
@@ -503,7 +508,7 @@ export async function WritableStreamDefaultWriterCloseWithErrorPropagation<T>(
 
 export function WritableStreamDefaultWriterEnsureClosedPromiseRejected<T>(
   writer: WritableStreamDefaultWriter<T>,
-  error
+  error?: any
 ) {
   if (writer.closedPromise[domTypes.PromiseState] === "pending") {
     writer.closedPromise.reject(error);
@@ -514,7 +519,7 @@ export function WritableStreamDefaultWriterEnsureClosedPromiseRejected<T>(
 
 export function WritableStreamDefaultWriterEnsureReadyPromiseRejected<T>(
   writer: WritableStreamDefaultWriter<T>,
-  error
+  error?: any
 ) {
   if (writer.readyPromise[domTypes.PromiseState] === "pending") {
     writer.readyPromise.reject(error);
@@ -525,7 +530,7 @@ export function WritableStreamDefaultWriterEnsureReadyPromiseRejected<T>(
 
 export function WritableStreamDefaultWriterGetDesiredSize<T>(
   writer: WritableStreamDefaultWriter<T>
-) {
+): number | null {
   const stream = writer.ownerWritableStream;
   const { state } = stream;
   if (state === "errored" || state === "erroring") {
@@ -683,9 +688,9 @@ export function SetUpWritableStreamDefaultController<T>(params: {
     });
 }
 
-export function SetUpWritableStreamDefaultControllerFromUnderlyingSink(
-  stream: WritableStream,
-  underlyingSink,
+export function SetUpWritableStreamDefaultControllerFromUnderlyingSink<T>(
+  stream: WritableStream<T>,
+  underlyingSink: any,
   highWaterMark: number,
   sizeAlgorithm: domTypes.SizeAlgorithm
 ) {
@@ -842,7 +847,7 @@ export function WritableStreamDefaultControllerProcessWrite<T>(
 ) {
   const stream = controller.controlledWritableStream;
   WritableStreamMarkFirstWriteRequestInFlight(stream);
-  const sinkWritePromise = controller.writeAlgorithm(chunk);
+  const sinkWritePromise = controller.writeAlgorithm!(chunk);
   sinkWritePromise.then(() => {
     WritableStreamFinishInFlightWrite(stream);
     const { state } = stream;

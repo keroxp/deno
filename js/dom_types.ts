@@ -314,13 +314,13 @@ export type PullAlgorithm = () => Promise<any>;
 export type SizeAlgorithm = (chunk: any) => number;
 export type StartAlgorithm = () => any;
 export type CancelAlgorithm = (reason?: any) => Promise<any>;
-export type WriteAlgorithm<T> = (chunk: T) => unknown;
+export type WriteAlgorithm<T> = (chunk: T) => Promise<any>;
 export type CloseAlgorithm = () => any;
 export type AbortAlgorithm = (reason?: any) => unknown;
 
 export interface ReadableStreamController<T> {
   readonly byobRequest?: ReadableStreamBYOBRequest;
-  readonly desiredSize: number;
+  readonly desiredSize: number|null;
   close(): void;
   enqueue(chunk: T): void;
   error(e: any): void;
@@ -352,9 +352,10 @@ export interface ReadableStreamDefaultReader<T=any> extends ReadableStreamReader
 export type ReadableStreamReadResult<T> = { value: T; done: boolean };
 export interface WritableStreamConstructor<T = any> extends WritableStream<T> {
   new(
-    underlyingSink: UnderlyingSink<T>,
+    underlyingSink?: UnderlyingSink<T>,
     strategy?: QueuingStrategy
   ): WritableStream<T>
+  prototype: WritableStreamConstructor<T>
 }
 export interface WritableStreamController<T> {
   error(e?: any) : void
@@ -376,8 +377,8 @@ export interface WritableStream<T=any> {
 
 export interface WritableStreamWriter<T> {
   readonly closed: Promise<void>;
-  readonly desiredSize: number;
-  readonly ready: Promise<void>;
+  readonly desiredSize: number|null;
+  readonly ready: Promise<undefined>;
   abort(reason?: any): Promise<void>;
   close(): Promise<void>;
   releaseLock(): void;
@@ -386,7 +387,7 @@ export interface WritableStreamWriter<T> {
 export interface WritableStreamDefaultWriter<T> extends WritableStreamWriter<T> {}
 
 export interface TransformStreamController<T> {
-  readonly desiredSize: number;
+  readonly desiredSize: number|null;
   enqueue(chunk: T): void;
   error(reason?: any): void;
   terminate(): void;
@@ -414,7 +415,7 @@ export interface TransformStream<T=any> {
 }
 
 export interface TransformStreamController<T=any> {
-  readonly desiredSize: number;
+  readonly desiredSize: number|null;
   enqueue(chunk: T): void;
   error(reason?: any): void;
   terminate(): void;
