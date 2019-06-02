@@ -253,7 +253,8 @@ export interface ReadableStreamConstructor<T = any> extends ReadableStream<T> {
   new(
     underlyingSource?: UnderlyingSource<T>,
     strategy?: QueuingStrategy
-  ): ReadableStream
+  ): ReadableStream<T>
+  prototype: ReadableStream<T>
 }
 
 export interface ReadableStream<T=any> {
@@ -288,17 +289,19 @@ export interface ReadableStream<T=any> {
   ): Promise<void>
   tee(): [ReadableStream<T>, ReadableStream<T>];
 }
+
 export interface QueuingStrategy {
   readonly highWaterMark?: number;
   readonly size?: (chunk: any) => number;
 }
 
 export interface ByteLengthQueuingStrategy extends QueuingStrategy {
-  new(highWaterMark?: number): ByteLengthQueuingStrategy;
+  new(opts?: {highWaterMark?: number}): ByteLengthQueuingStrategy;
 }
 export interface CountQueuingStrategy extends QueuingStrategy {
-  new(highWaterMark?: number): CountQueuingStrategy;
+  new(opts?: {highWaterMark?: number}): CountQueuingStrategy;
 }
+
 export type UnderlyingSource<T = any> = {
   type?: "bytes";
   autoAllocateChunkSize?: number;
@@ -307,8 +310,13 @@ export type UnderlyingSource<T = any> = {
   cancel?: CancelAlgorithm;
 };
 
-type StartAlgorithm = () => any;
-type CancelAlgorithm = (reason?: any) => Promise<any>;
+export type PullAlgorithm = () => Promise<any>;
+export type SizeAlgorithm = (chunk: any) => number;
+export type StartAlgorithm = () => any;
+export type CancelAlgorithm = (reason?: any) => Promise<any>;
+export type WriteAlgorithm<T> = (chunk: T) => unknown;
+export type CloseAlgorithm = () => any;
+export type AbortAlgorithm = (reason?: any) => unknown;
 
 export interface ReadableStreamController<T> {
   readonly byobRequest?: ReadableStreamBYOBRequest;
@@ -317,7 +325,8 @@ export interface ReadableStreamController<T> {
   enqueue(chunk: T): void;
   error(e: any): void;
 }
-
+export interface ReadableByteStreamController extends ReadableStreamConstructor<Uint8Array> {}
+export interface ReadableStreamDefaultController<T> extends ReadableStreamController<T> {}
 export interface ReadableStreamBYOBRequest {
   readonly view: Uint8Array;
   respond(bytesWritten: number): void;
@@ -338,22 +347,24 @@ export interface ReadableStreamBYOBReader {
   releaseLock(): Promise<void>;
 }
 
+export interface ReadableStreamDefaultReader<T=any> extends ReadableStreamReader<T> {}
+
 export type ReadableStreamReadResult<T> = { value: T; done: boolean };
-type WriteAlgorithm<T> = (chunk: T) => any;
-type CloseAlgorithm = () => any;
-type AbortAlgorithm = (reason?: any) => any;
 export interface WritableStreamConstructor<T = any> extends WritableStream<T> {
   new(
-    underlyingSink: {
-      start?: StartAlgorithm;
-      write?: WriteAlgorithm<T>;
-      close?: CloseAlgorithm;
-      abort?: AbortAlgorithm;
-      type?: string;
-    },
+    underlyingSink: UnderlyingSink<T>,
     strategy?: QueuingStrategy
   ): WritableStream<T>
 }
+export interface WritableStreamDefaultController<T=any> extends WritableStreamConstructor<T> {}
+export interface UnderlyingSink<T> {
+  start?: StartAlgorithm;
+  write?: WriteAlgorithm<T>;
+  close?: CloseAlgorithm;
+  abort?: AbortAlgorithm;
+  type?: string;
+}
+
 export interface WritableStream<T=any> {
   readonly locked: boolean;
   abort(reason?: any): Promise<void>
@@ -369,6 +380,8 @@ export interface WritableStreamWriter<T> {
   releaseLock(): void;
   write(chunk: T): Promise<void>;
 }
+export interface WritableStreamDefaultWriter<T> extends WritableStreamWriter<T> {}
+
 export interface TransformStreamController<T> {
   readonly desiredSize: number;
   enqueue(chunk: T): void;
@@ -376,7 +389,10 @@ export interface TransformStreamController<T> {
   terminate(): void;
 }
 
-type Transformer<T> = {
+export type FlushAlgorithm = () => Promise<any>;
+export type TransformAlgorithm<T> = (chunk: T) => Promise<any>;
+
+export type Transformer<T> = {
   start?: (controller: TransformStreamController<T>) => any;
   transform?: (chunk: T, controller: TransformStreamController<T>) => Promise<any>;
   flush?: (controller: TransformStreamController<T>) => Promise<any>;
@@ -393,6 +409,14 @@ export interface TransformStream<T=any> {
   readonly readable: ReadableStream<T>
   readonly writable: WritableStream<T>
 }
+
+export interface TransformStreamController<T=any> {
+  readonly desiredSize: number;
+  enqueue(chunk: T): void;
+  error(reason?: any): void;
+  terminate(): void;
+}
+export interface TransformStreamDefaultController<T> extends TransformStreamController<T> {}
 
 export interface EventListenerObject {
   handleEvent(evt: Event): void;
@@ -560,6 +584,13 @@ export interface ResponseInit {
   status?: number;
   statusText?: string;
 }
+
+export const PromiseState = Symbol("PromiseState");
+export type Defer<T=void,E=any> = {
+  resolve(t?: T): void;
+  reject(e?: E): void;
+  [PromiseState]: string;
+} & Promise<T>;
 
 export interface Request extends Body {
   /** Returns the cache mode associated with request, which is a string

@@ -6,10 +6,7 @@ import {
   ReadableStreamDefaultControllerHasBackpressure
 } from "./readable_stream_controller";
 import {
-  FlushAlgorithm,
   IsTransformStream,
-  TransformAlgorithm,
-  Transformer,
   TransformStream,
   TransformStreamError,
   TransformStreamErrorWritableAndUnblockWrite,
@@ -17,19 +14,10 @@ import {
 } from "./transform_stream";
 import { Assert } from "./util";
 import { CreateAlgorithmFromUnderlyingMethod, PromiseCall } from "./misc";
-
-export interface TransformStreamController<T> {
-  readonly desiredSize: number;
-
-  enqueue(chunk: T);
-
-  error(reason);
-
-  terminate();
-}
+import * as domTypes from "../dom_types";
 
 export class TransformStreamDefaultController<T = any>
-  implements TransformStreamController<T> {
+  implements domTypes.TransformStreamController<T> {
   constructor() {
     throw new TypeError(
       "TransformStreamDefaultController is not constructable"
@@ -67,8 +55,8 @@ export class TransformStreamDefaultController<T = any>
   }
 
   controlledTransformStream: TransformStream<T>;
-  flushAlgorithm: FlushAlgorithm;
-  transformAlgorithm: TransformAlgorithm<T>;
+  flushAlgorithm: domTypes.FlushAlgorithm;
+  transformAlgorithm: domTypes.TransformAlgorithm<T>;
 }
 
 export function IsTransformStreamDefaultController(
@@ -80,8 +68,8 @@ export function IsTransformStreamDefaultController(
 export function SetUpTransformStreamDefaultController<T>(
   stream: TransformStream<T>,
   controller: TransformStreamDefaultController,
-  transformAlgorithm: TransformAlgorithm<T>,
-  flushAlgorithm: FlushAlgorithm
+  transformAlgorithm: domTypes.TransformAlgorithm<T>,
+  flushAlgorithm: domTypes.FlushAlgorithm
 ) {
   Assert(IsTransformStream(stream));
   Assert(stream.transformStreamController === void 0);
@@ -93,11 +81,11 @@ export function SetUpTransformStreamDefaultController<T>(
 
 export function SetUpTransformStreamDefaultControllerFromTransformer<T>(
   stream: TransformStream<T>,
-  transformer: Transformer<T>
+  transformer: domTypes.Transformer<T>
 ) {
   Assert(transformer !== void 0);
   const controller = Object.create(TransformStreamDefaultController.prototype);
-  let transformAlgorithm: TransformAlgorithm<T> = async chunk => {
+  let transformAlgorithm: domTypes.TransformAlgorithm<T> = async chunk => {
     try {
       TransformStreamDefaultControllerEnqueue(controller, chunk);
     } catch (e) {

@@ -23,7 +23,7 @@ export class ReadableStreamBYOBRequestImpl
 
   associatedReadableByteStreamController: ReadableByteStreamController;
   _view: Uint8Array;
-  get view() {
+  get view(): Uint8Array {
     if (!IsReadableStreamBYOBRequest(this)) {
       throw new TypeError();
     }
@@ -46,7 +46,7 @@ export class ReadableStreamBYOBRequestImpl
     );
   }
 
-  respondWithNewView(view) {
+  respondWithNewView(view: any) {
     if (!IsReadableStreamBYOBRequest(this)) {
       throw new TypeError();
     }
@@ -69,7 +69,9 @@ export class ReadableStreamBYOBRequestImpl
   }
 }
 
-export function IsReadableStreamBYOBRequest(x): x is ReadableStreamBYOBRequest {
+export function IsReadableStreamBYOBRequest(
+  x: any
+): x is ReadableStreamBYOBRequest {
   return (
     typeof x === "object" &&
     x.hasOwnProperty("associatedReadableByteStreamController")
@@ -79,7 +81,7 @@ export function IsReadableStreamBYOBRequest(x): x is ReadableStreamBYOBRequest {
 export function SetUpReadableStreamBYOBRequest(
   request: ReadableStreamBYOBRequestImpl,
   controller: ReadableByteStreamController,
-  view
+  view: any
 ) {
   Assert(IsReadableByteStreamController(controller));
   Assert(typeof view === "object");

@@ -1,9 +1,5 @@
-import {
-  WritableStreamDefaultWriter,
-  WritableStreamDefaultWriterEnsureReadyPromiseRejected,
-} from "./writable_stream_writer";
-import { defer, Defer } from "./defer";
-import { SizeAlgorithm, StartAlgorithm } from "./readable_stream";
+import { WritableStreamDefaultWriterEnsureReadyPromiseRejected } from "./writable_stream_writer";
+import { defer } from "../defer";
 import {
   IsNonNegativeNumber,
   MakeSizeAlgorithmFromSizeFunction,
@@ -15,26 +11,28 @@ import {
   createWritableStreamDefaultController,
   ErrorSteps,
   SetUpWritableStreamDefaultController,
-  SetUpWritableStreamDefaultControllerFromUnderlyingSink,
-  WritableStreamDefaultController
+  SetUpWritableStreamDefaultControllerFromUnderlyingSink
 } from "./writable_stream_controller";
-import { QueuingStrategy } from "./strategy";
 import * as domTypes from "../dom_types";
 
-export type WriteAlgorithm<T> = (chunk: T) => any;
-export type CloseAlgorithm = () => any;
-export type AbortAlgorithm = (reason) => any;
-
 export class WritableStream<T = any> {
+  backpressure;
+  closeRequest?: domTypes.Defer<any>;
+  inFlightWriteRequest?: domTypes.Defer<any>;
+  inFlightCloseRequest?: domTypes.Defer<any>;
+  pendingAbortRequest?: {
+    promise: domTypes.Defer<any>;
+    reason?: any;
+    wasAlreadyErroring: boolean;
+  };
+  state?: "writable" | "closed" | "erroring" | "errored";
+  storedError?: Error;
+  writableStreamController?: domTypes.WritableStreamDefaultController<T>;
+  writer?: domTypes.WritableStreamDefaultWriter<T>;
+  writeRequests?: domTypes.Defer<any>[];
   constructor(
-    underlyingSink: {
-      start?: StartAlgorithm;
-      write?: WriteAlgorithm<T>;
-      close?: CloseAlgorithm;
-      abort?: AbortAlgorithm;
-      type?: string;
-    },
-    strategy: QueuingStrategy = {}
+    underlyingSink: domTypes.UnderlyingSink<T>,
+    strategy: domTypes.QueuingStrategy = {}
   ) {
     InitializeWritableStream(this);
     let { size, highWaterMark } = strategy;
@@ -72,42 +70,27 @@ export class WritableStream<T = any> {
     return WritableStreamAbort(this, reason);
   }
 
-  getWriter():domTypes.WritableStreamWriter<T> {
+  getWriter(): domTypes.WritableStreamWriter<T> {
     if (!IsWritableStream(this)) {
       throw new TypeError("this is not writable stream");
     }
     return AcquireWritableStreamDefaultWriter(this);
   }
-
-  backpressure;
-  closeRequest: Defer<any>;
-  inFlightWriteRequest: Defer<any>;
-  inFlightCloseRequest: Defer<any>;
-  pendingAbortRequest: {
-    promise: Defer<any>;
-    reason;
-    wasAlreadyErroring: boolean;
-  };
-  state: "writable" | "closed" | "erroring" | "errored";
-  storedError: Error;
-  writableStreamController: WritableStreamDefaultController<T>;
-  writer: WritableStreamDefaultWriter<T>;
-  writeRequests: Defer<any>[];
 }
 
 export function AcquireWritableStreamDefaultWriter<T>(
-  stream: WritableStream
-): WritableStreamDefaultWriter<T> {
+  stream: domTypes.WritableStream
+): domTypes.WritableStreamDefaultWriter<T> {
   return new WritableStreamDefaultWriter(stream);
 }
 
 export function CreateWritableStream<T>(
-  startAlgorithm: StartAlgorithm,
-  writeAlgorithm: WriteAlgorithm<T>,
-  closeAlgorithm: CloseAlgorithm,
-  abortAlgorithm: AbortAlgorithm,
+  startAlgorithm: domTypes.StartAlgorithm,
+  writeAlgorithm: domTypes.WriteAlgorithm<T>,
+  closeAlgorithm: domTypes.CloseAlgorithm,
+  abortAlgorithm: domTypes.AbortAlgorithm,
   highWaterMark: number = 1,
-  sizeAlgorithm: SizeAlgorithm = () => 1
+  sizeAlgorithm: domTypes.SizeAlgorithm = () => 1
 ) {
   Assert(IsNonNegativeNumber(highWaterMark));
   const stream = Object.create(WritableStream.prototype);
@@ -175,10 +158,12 @@ export async function WritableStreamAbort(
   return promise;
 }
 
-export function WritableStreamAddWriteRequest(stream: WritableStream) {
+export function WritableStreamAddWriteRequest(
+  stream: WritableStream
+): Promise<void> {
   Assert(IsWritableStreamLocked(stream));
   Assert(stream.state === "writable");
-  const promise = defer();
+  const promise = defer<void>();
   stream.writeRequests.push(promise);
   return promise;
 }

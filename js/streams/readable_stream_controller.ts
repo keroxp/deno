@@ -1,19 +1,14 @@
 import { Assert } from "./util";
 
-import { ReadableStreamBYOBRequest } from "./readable_stream_request";
 import {
-  CancelAlgorithm,
   IsReadableStreamLocked,
-  PullAlgorithm,
   ReadableStream,
   ReadableStreamAddReadRequest,
   ReadableStreamClose,
   ReadableStreamCreateReadResult,
   ReadableStreamError,
   ReadableStreamFulfillReadRequest,
-  ReadableStreamGetNumReadRequests,
-  SizeAlgorithm,
-  StartAlgorithm,
+  ReadableStreamGetNumReadRequests
 } from "./readable_stream";
 
 import {
@@ -36,27 +31,13 @@ export type PullIntoDescriptor = {
   readerType: string;
 };
 
-export interface ReadableStreamController<T> {
-  readonly byobRequest?: ReadableStreamBYOBRequest;
-
-  readonly desiredSize: number;
-
-  close(): void;
-
-  enqueue(chunk: T): void;
-
-  error(e): void;
-}
-
 export abstract class ReadableStreamControllerBase {
   autoAllocateChunkSize: number;
-
-  cancelAlgorithm: CancelAlgorithm;
-
+  cancelAlgorithm: domTypes.CancelAlgorithm;
   closeRequested: boolean;
   pullAgain: boolean;
 
-  pullAlgorithm: PullAlgorithm;
+  pullAlgorithm: domTypes.PullAlgorithm;
 
   pulling: boolean;
   pendingPullIntos: PullIntoDescriptor[];
@@ -74,7 +55,7 @@ export abstract class ReadableStreamControllerBase {
 
 export class ReadableStreamDefaultController<T>
   extends ReadableStreamControllerBase
-  implements ReadableStreamController<T> {
+  implements domTypes.ReadableStreamController<T> {
   constructor() {
     super();
     throw new TypeError();
@@ -287,11 +268,11 @@ export function ReadableStreamDefaultControllerCanCloseOrEnqueue<T>(
 export function SetUpReadableStreamDefaultController<T>(params: {
   stream: ReadableStream;
   controller: ReadableStreamDefaultController<T>;
-  startAlgorithm: StartAlgorithm;
-  pullAlgorithm: PullAlgorithm;
-  cancelAlgorithm: CancelAlgorithm;
+  startAlgorithm: domTypes.StartAlgorithm;
+  pullAlgorithm: domTypes.PullAlgorithm;
+  cancelAlgorithm: domTypes.CancelAlgorithm;
   highWaterMark: number;
-  sizeAlgorithm: SizeAlgorithm;
+  sizeAlgorithm: domTypes.SizeAlgorithm;
 }) {
   const {
     stream,
@@ -331,7 +312,7 @@ export function SetUpReadableStreamDefaultControllerFromUnderlyingSource(params:
   stream: ReadableStream;
   underlyingSource: domTypes.UnderlyingSource;
   highWaterMark: number;
-  sizeAlgorithm: SizeAlgorithm;
+  sizeAlgorithm: domTypes.SizeAlgorithm;
 }) {
   const { stream, underlyingSource, highWaterMark, sizeAlgorithm } = params;
   Assert(underlyingSource !== void 0);

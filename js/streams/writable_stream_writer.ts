@@ -6,13 +6,7 @@ import {
   WritableStreamAddWriteRequest,
   WritableStreamCloseQueuedOrInFlight
 } from "./writable_stream";
-import {
-  defer,
-  Defer,
-  PromiseState,
-  rejectDefer,
-  resolveDefer
-} from "./defer";
+import { defer, rejectDefer, resolveDefer } from "../defer";
 import { Assert } from "./util";
 import {
   WritableStreamDefaultControllerClose,
@@ -22,7 +16,8 @@ import {
 } from "./writable_stream_controller";
 import * as domTypes from "../dom_types";
 
-export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWriter<T> {
+export class WritableStreamDefaultWriter<T>
+  implements domTypes.WritableStreamWriter<T> {
   constructor(stream: WritableStream) {
     if (!IsWritableStream(stream)) {
       throw new TypeError("stream is not writable stream");
@@ -54,7 +49,7 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     }
   }
 
-  get closed(): Promise<undefined> {
+  get closed(): Promise<void> {
     if (!IsWritableStreamDefaultWriter(this)) {
       return Promise.reject(
         new TypeError("this is not WritableStreamDefaultWriter")
@@ -63,7 +58,7 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     return this.closedPromise;
   }
 
-  get desiredSize() {
+  get desiredSize(): number {
     if (!IsWritableStreamDefaultWriter(this)) {
       throw new TypeError("this is not WritableStreamDefaultWriter");
     }
@@ -82,7 +77,7 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     return this.readyPromise;
   }
 
-  async abort(reason) {
+  async abort(reason?: any): Promise<void> {
     if (!IsWritableStreamDefaultWriter(this)) {
       throw new TypeError("this is not WritableStreamDefaultWriter");
     }
@@ -92,7 +87,7 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     return WritableStreamDefaultWriterAbort(this, reason);
   }
 
-  async close() {
+  async close(): Promise<void> {
     if (!IsWritableStreamDefaultWriter(this)) {
       throw new TypeError();
     }
@@ -118,7 +113,7 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     WritableStreamDefaultWriterRelease(this);
   }
 
-  write(chunk) {
+  write(chunk: T): Promise<void> {
     if (!IsWritableStreamDefaultWriter(this)) {
       throw new TypeError();
     }
@@ -129,9 +124,9 @@ export class WritableStreamDefaultWriter<T> implements domTypes.WritableStreamWr
     return WritableStreamDefaultWriterWrite(this, chunk);
   }
 
-  closedPromise: Defer<any>;
+  closedPromise: domTypes.Defer<any>;
   ownerWritableStream: WritableStream;
-  readyPromise: Defer<any>;
+  readyPromise: domTypes.Defer<any>;
 }
 
 export function IsWritableStreamDefaultWriter<T>(
@@ -188,7 +183,7 @@ export function WritableStreamDefaultWriterEnsureClosedPromiseRejected<T>(
   writer: WritableStreamDefaultWriter<T>,
   error
 ) {
-  if (writer.closedPromise[PromiseState] === "pending") {
+  if (writer.closedPromise[domTypes.PromiseState] === "pending") {
     writer.closedPromise.reject(error);
   } else {
     writer.closedPromise = rejectDefer(error);
@@ -199,7 +194,7 @@ export function WritableStreamDefaultWriterEnsureReadyPromiseRejected<T>(
   writer: WritableStreamDefaultWriter<T>,
   error
 ) {
-  if (writer.readyPromise[PromiseState] === "pending") {
+  if (writer.readyPromise[domTypes.PromiseState] === "pending") {
     writer.readyPromise.reject(error);
   } else {
     writer.readyPromise = rejectDefer(error);
@@ -238,7 +233,7 @@ export function WritableStreamDefaultWriterRelease<T>(
 export async function WritableStreamDefaultWriterWrite<T>(
   writer: WritableStreamDefaultWriter<T>,
   chunk
-) {
+): Promise<void> {
   const stream = writer.ownerWritableStream;
   Assert(stream !== void 0);
   const controller = stream.writableStreamController;

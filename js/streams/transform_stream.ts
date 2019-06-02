@@ -1,11 +1,6 @@
-import {
-  SizeAlgorithm,
-  StartAlgorithm,
-  ReadableStream,
-  CreateReadableStream
-} from "./readable_stream";
-import { defer, Defer } from "./defer";
-import { CreateWritableStream, WritableStream } from "./writable_stream";
+import { ReadableStream, CreateReadableStream } from "./readable_stream";
+import { defer } from "../defer";
+import { WritableStream, CreateWritableStream } from "./writable_stream";
 import {
   InvokeOrNoop,
   IsNonNegativeNumber,
@@ -13,10 +8,9 @@ import {
   ValidateAndNormalizeHighWaterMark
 } from "./misc";
 import {
+  TransformStreamDefaultController,
   SetUpTransformStreamDefaultController,
   SetUpTransformStreamDefaultControllerFromTransformer,
-  TransformStreamController,
-  TransformStreamDefaultController,
   TransformStreamDefaultControllerClearAlgorithms,
   TransformStreamDefaultSinkAbortAlgorithm,
   TransformStreamDefaultSinkCloseAlgorithm,
@@ -26,21 +20,13 @@ import {
 import { Assert } from "./util";
 import { ReadableStreamDefaultControllerError } from "./readable_stream_controller";
 import { WritableStreamDefaultControllerErrorIfNeeded } from "./writable_stream_controller";
-import { QueuingStrategy } from "./strategy";
-
-export type Transformer<T> = {
-  start?: (controller) => any;
-  transform?: (chunk, controller: TransformStreamController<T>) => Promise<any>;
-  flush?: (controller: TransformStreamController<T>) => Promise<any>;
-  writableType?: undefined;
-  readableType?: undefined;
-};
+import * as domTypes from "../dom_types";
 
 export class TransformStream<T = any> {
   constructor(
-    transformer: Transformer<T>,
-    writableStrategy: QueuingStrategy,
-    readableStrategy: QueuingStrategy
+    transformer: domTypes.Transformer<T>,
+    writableStrategy: domTypes.QueuingStrategy,
+    readableStrategy: domTypes.QueuingStrategy
   ) {
     let writableSizeFunction = writableStrategy.size;
     let writableHighWaterMark = writableStrategy.highWaterMark;
@@ -81,38 +67,35 @@ export class TransformStream<T = any> {
     );
   }
 
-  get readable(): ReadableStream<T> {
+  get readable(): domTypes.ReadableStream<T> | undefined {
     if (!IsTransformStream(this)) {
       throw new TypeError("this is not transform stream");
     }
     return this._readable;
   }
 
-  get writable(): WritableStream<T> {
+  get writable(): domTypes.WritableStream<T> | undefined {
     if (!IsTransformStream(this)) {
       throw new TypeError("this is not transform stream");
     }
     return this._writable;
   }
 
-  backpressure: boolean;
-  backpressureChangePromise: Defer<any>;
-  _readable: ReadableStream<T>;
-  transformStreamController: TransformStreamDefaultController<T>;
-  _writable: WritableStream<T>;
+  backpressure?: boolean;
+  backpressureChangePromise?: domTypes.Defer<any>;
+  _readable?: ReadableStream<T>;
+  transformStreamController?: TransformStreamDefaultController<T>;
+  _writable?: WritableStream<T>;
 }
 
-export type FlushAlgorithm = () => Promise<any>;
-export type TransformAlgorithm<T> = (chunk: T) => Promise<any>;
-
 export function CreateTransformStream<T>(
-  startAlgorithm: StartAlgorithm,
-  transformAlgorithm: TransformAlgorithm<T>,
-  flushAlgorithm: FlushAlgorithm,
+  startAlgorithm: domTypes.StartAlgorithm,
+  transformAlgorithm: domTypes.TransformAlgorithm<T>,
+  flushAlgorithm: domTypes.FlushAlgorithm,
   writableHighWaterMark: number = 1,
-  writableSizeAlgorithm: SizeAlgorithm = () => 1,
+  writableSizeAlgorithm: domTypes.SizeAlgorithm = () => 1,
   readableHighWaterMark: number = 1,
-  readableSizeAlgorithm: SizeAlgorithm = () => 1
+  readableSizeAlgorithm: domTypes.SizeAlgorithm = () => 1
 ): TransformStream {
   Assert(IsNonNegativeNumber(writableHighWaterMark));
   Assert(IsNonNegativeNumber(readableHighWaterMark));
@@ -139,16 +122,16 @@ export function CreateTransformStream<T>(
 
 export function InitializeTransformStream<T>(
   stream: TransformStream<T>,
-  startPromise: Defer<any>,
+  startPromise: domTypes.Defer<any>,
   writableHighWaterMark: number,
-  writableSizeAlgorithm: SizeAlgorithm,
+  writableSizeAlgorithm: domTypes.SizeAlgorithm,
   readableHighWaterMark: number,
-  readableSizeAlgorithm: SizeAlgorithm
+  readableSizeAlgorithm: domTypes.SizeAlgorithm
 ) {
   const startAlgorithm = () => startPromise;
-  const writeAlgorithm = chunk =>
+  const writeAlgorithm: domTypes.WriteAlgorithm<T> = chunk =>
     TransformStreamDefaultSinkWriteAlgorithm(stream, chunk);
-  const abortAlgorithm = reason =>
+  const abortAlgorithm: domTypes.AbortAlgorithm = reason =>
     TransformStreamDefaultSinkAbortAlgorithm(stream, reason);
   const closeAlgorithm = () => TransformStreamDefaultSinkCloseAlgorithm(stream);
   stream._writable = CreateWritableStream(
@@ -159,9 +142,12 @@ export function InitializeTransformStream<T>(
     writableHighWaterMark,
     writableSizeAlgorithm
   );
-  const pullAlgorithm = () => TransformStreamDefaultSourcePullAlgorithm(stream);
-  const cancelAlgorithm = reason =>
+  const pullAlgorithm: domTypes.PullAlgorithm = async () => {
+    TransformStreamDefaultSourcePullAlgorithm(stream);
+  };
+  const cancelAlgorithm: domTypes.CancelAlgorithm = async reason => {
     TransformStreamErrorWritableAndUnblockWrite(stream, reason);
+  };
   stream._readable = CreateReadableStream(
     startAlgorithm,
     pullAlgorithm,

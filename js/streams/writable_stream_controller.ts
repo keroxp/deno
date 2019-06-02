@@ -1,10 +1,6 @@
-import { SizeAlgorithm, StartAlgorithm } from "./readable_stream";
 import {
   WritableStream,
-  AbortAlgorithm,
-  CloseAlgorithm,
   IsWritableStream,
-  WriteAlgorithm,
   WritableStreamUpdateBackpressure,
   WritableStreamDealWithRejection,
   WritableStreamCloseQueuedOrInFlight,
@@ -25,10 +21,7 @@ import {
   PeekQueueValue,
   ResetQueue
 } from "./misc";
-
-export interface WritableStreamController {
-  error(e);
-}
+import * as domTypes from "../dom_types";
 
 export const ErrorSteps = Symbol("ErrorSteps");
 export const AbortSteps = Symbol("AbortSteps");
@@ -47,22 +40,22 @@ export function createWritableStreamDefaultController<
 }
 
 export class WritableStreamDefaultController<T>
-  implements WritableStreamController {
-  abortAlgorithm: AbortAlgorithm;
-  closeAlgorithm: CloseAlgorithm;
+  implements domTypes.WritableStreamController<T> {
+  abortAlgorithm?: domTypes.AbortAlgorithm;
+  closeAlgorithm?: domTypes.CloseAlgorithm;
   controlledWritableStream: WritableStream;
   queue: ("close" | { chunk: T })[];
   queueTotalSize: number;
   started: boolean;
   strategyHWM: number;
-  strategySizeAlgorithm: SizeAlgorithm;
-  writeAlgorithm: WriteAlgorithm;
+  strategySizeAlgorithm?: domTypes.SizeAlgorithm;
+  writeAlgorithm?: domTypes.WriteAlgorithm<T>;
 
   constructor() {
     throw new TypeError();
   }
 
-  error(e) {
+  error(e?: any) {
     if (!IsWritableStreamDefaultController(this)) {
       throw new TypeError("this is not WritableStreamDefaultController");
     }
@@ -75,7 +68,7 @@ export class WritableStreamDefaultController<T>
 }
 
 export function IsWritableStreamDefaultController<T>(
-  x
+  x: any
 ): x is WritableStreamDefaultController<T> {
   return typeof x === "object" && x.hasOwnProperty("controlledWritableStream");
 }
@@ -83,12 +76,12 @@ export function IsWritableStreamDefaultController<T>(
 export function SetUpWritableStreamDefaultController<T>(params: {
   stream: WritableStream;
   controller: WritableStreamDefaultController<T>;
-  startAlgorithm: StartAlgorithm;
-  writeAlgorithm: WriteAlgorithm;
-  closeAlgorithm: CloseAlgorithm;
-  abortAlgorithm: AbortAlgorithm;
+  startAlgorithm: domTypes.StartAlgorithm;
+  writeAlgorithm: domTypes.WriteAlgorithm<T>;
+  closeAlgorithm: domTypes.CloseAlgorithm;
+  abortAlgorithm: domTypes.AbortAlgorithm;
   highWaterMark: number;
-  sizeAlgorithm: SizeAlgorithm;
+  sizeAlgorithm: domTypes.SizeAlgorithm;
 }) {
   const {
     stream,
@@ -132,7 +125,7 @@ export function SetUpWritableStreamDefaultControllerFromUnderlyingSink(
   stream: WritableStream,
   underlyingSink,
   highWaterMark: number,
-  sizeAlgorithm: SizeAlgorithm
+  sizeAlgorithm: domTypes.SizeAlgorithm
 ) {
   Assert(underlyingSink !== void 0);
   const controller = createWritableStreamDefaultController();

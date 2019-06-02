@@ -53,8 +53,8 @@ export function CreateAlgorithmFromUnderlyingMethod<T>(
   underlyingObject: domTypes.UnderlyingSource,
   methodName: string | symbol,
   algoArgCount: number,
-  ...extraArgs
-): (...args) => any {
+  ...extraArgs: any[]
+): (...args: any[]) => any {
   Assert(underlyingObject !== void 0);
   //assert(IsP)
   Assert(algoArgCount === 0 || algoArgCount === 1);
@@ -72,7 +72,7 @@ export function CreateAlgorithmFromUnderlyingMethod<T>(
   return () => Promise.resolve(void 0);
 }
 
-export function InvokeOrNoop(O, P: string | symbol, ...args) {
+export function InvokeOrNoop(O, P: string | symbol, ...args: any[]) {
   Assert(O !== void 0);
   Assert(typeof P === "string" || typeof P === "symbol");
   Assert(Array.isArray(args));

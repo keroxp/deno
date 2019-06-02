@@ -1,5 +1,6 @@
 import * as domTypes from "../dom_types";
 import {
+  ReadableStreamDefaultReader,
   IsReadableStreamDefaultReader,
   ReadableStreamDefaultReaderRead,
   ReadableStreamReaderGenericRelease
@@ -9,6 +10,7 @@ import {
   ReadableStreamDefaultControllerClose,
   ReadableStreamDefaultControllerEnqueue,
   ReadableStreamDefaultControllerError,
+  ReadableStreamDefaultController,
   SetUpReadableStreamDefaultController,
   SetUpReadableStreamDefaultControllerFromUnderlyingSource
 } from "./readable_stream_controller";
@@ -17,22 +19,20 @@ import {
   MakeSizeAlgorithmFromSizeFunction,
   ValidateAndNormalizeHighWaterMark
 } from "./misc";
-import { defer } from "./defer";
+import { defer } from "../defer";
 import {
   WritableStream,
   AcquireWritableStreamDefaultWriter,
   IsWritableStream,
   IsWritableStreamLocked,
   WritableStreamAbort,
-  WritableStreamCloseQueuedOrInFlight,
-  AbortAlgorithm
+  WritableStreamCloseQueuedOrInFlight
 } from "./writable_stream";
 import {
   WritableStreamDefaultWriterCloseWithErrorPropagation,
   WritableStreamDefaultWriterGetDesiredSize,
   WritableStreamDefaultWriterRelease
 } from "./writable_stream_writer";
-import { QueuingStrategy } from "./strategy";
 import {
   IsReadableByteStreamController,
   SetUpReadableByteStreamController,
@@ -44,25 +44,18 @@ import {
   ReadableStreamBYOBReader
 } from "./readable_stream_byob_reader";
 
-
-export type StartAlgorithm = () => any;
-export type PullAlgorithm = () => Promise<any>;
-export type CancelAlgorithm = (reason) => Promise<any>;
-export type SizeAlgorithm = (chunk) => number;
-
-
 export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
-  disturbed: boolean;
-  readableStreamController:
-    | domTypes.ReadableByteStreamController
-    | domTypes.ReadableStreamDefaultController<T>;
-  reader: domTypes.ReadableStreamDefaultReader | domTypes.ReadableStreamBYOBReader;
-  state: "readable" | "closed" | "errored";
-  storedError: Error;
+  disturbed: boolean = false;
+  readableStreamController?:
+    | ReadableByteStreamController
+    | ReadableStreamDefaultController<T>;
+  reader?: ReadableStreamDefaultReader | ReadableStreamBYOBReader;
+  state?: "readable" | "closed" | "errored";
+  storedError?: Error;
 
   constructor(
     underlyingSource: domTypes.UnderlyingSource<T> = {},
-    strategy: QueuingStrategy = {}
+    strategy: domTypes.QueuingStrategy = {}
   ) {
     InitializeReadableStream(this);
     let { highWaterMark, size } = strategy;
@@ -115,11 +108,11 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
   }
 
   getReader<M extends "byob">(params: {
-    mode?: M
+    mode?: M;
   }): {
-    byob: domTypes.ReadableStreamBYOBReader,
-    undefined: domTypes.ReadableStreamReader<T>
-  }[M];{
+    byob: domTypes.ReadableStreamBYOBReader;
+    undefined: domTypes.ReadableStreamReader<T>;
+  }[M] {
     if (!IsReadableStream(this)) {
       throw new TypeError();
     }
@@ -132,7 +125,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     throw new RangeError();
   }
 
-  pipeThrough<T>(
+  pipeThrough(
     {
       writable,
       readable
@@ -151,7 +144,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
       preventCancel?: boolean;
       signal?: domTypes.AbortSignal;
     } = {}
-  ): ReadableStream<T> {
+  ): domTypes.ReadableStream<T> {
     if (!IsReadableStream(this)) {
       throw new TypeError("this is not ReadableStream");
     }
@@ -185,7 +178,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
   }
 
   async pipeTo(
-    dest: WritableStream<T>,
+    dest: domTypes.WritableStream<T>,
     {
       preventClose,
       preventAbort,
@@ -195,9 +188,9 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
       preventClose?: boolean;
       preventAbort?: boolean;
       preventCancel?: boolean;
-      signal?;
+      signal?: domTypes.AbortSignal;
     } = {}
-  ): Promise<any> {
+  ): Promise<void> {
     if (!IsReadableStream(this)) {
       throw new TypeError("this is not ReadableStream");
     }
@@ -226,7 +219,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     );
   }
 
-  tee(): [ReadableStream, ReadableStream] {
+  tee(): [domTypes.ReadableStream<T>, domTypes.ReadableStream<T>] {
     if (!IsReadableStream(this)) {
       throw new TypeError();
     }
@@ -247,11 +240,11 @@ function AcquireReadableStreamDefaultReader(
 }
 
 export function CreateReadableStream(
-  startAlgorithm: StartAlgorithm,
-  pullAlgorithm: PullAlgorithm,
-  cancelAlgorithm: CancelAlgorithm,
+  startAlgorithm: domTypes.StartAlgorithm,
+  pullAlgorithm: domTypes.PullAlgorithm,
+  cancelAlgorithm: domTypes.CancelAlgorithm,
   highWaterMark: number = 1,
-  sizeAlgorithm: SizeAlgorithm = () => 1
+  sizeAlgorithm: domTypes.SizeAlgorithm = () => 1
 ): ReadableStream {
   Assert(IsNonNegativeNumber(highWaterMark));
   const stream = Object.create(ReadableStream.prototype);
@@ -270,9 +263,9 @@ export function CreateReadableStream(
 }
 
 export function CreateReadableByteStream(
-  startAlgorithm: StartAlgorithm,
-  pullAlgorithm: PullAlgorithm,
-  cancelAlgorithm: CancelAlgorithm,
+  startAlgorithm: domTypes.StartAlgorithm,
+  pullAlgorithm: domTypes.PullAlgorithm,
+  cancelAlgorithm: domTypes.CancelAlgorithm,
   highWaterMark: number = 1,
   autoAllocateChunkSize?: number
 ) {
@@ -317,10 +310,10 @@ export function IsReadableStreamLocked(stream: ReadableStream): boolean {
   return stream.reader !== void 0;
 }
 
-export function ReadableStreamTee(
-  stream: ReadableStream,
+export function ReadableStreamTee<T>(
+  stream: ReadableStream<T>,
   cloneForBranch2: boolean
-): [ReadableStream, ReadableStream] {
+): [domTypes.ReadableStream<T>, domTypes.ReadableStream<T>] {
   Assert(IsReadableStream(stream));
   Assert(typeof cloneForBranch2 === "boolean");
   const reader = AcquireReadableStreamDefaultReader(stream);
@@ -329,10 +322,10 @@ export function ReadableStreamTee(
   let canceled2 = false;
   let reason1 = void 0;
   let reason2 = void 0;
-  let branch1: ReadableStream = void 0;
-  let branch2: ReadableStream = void 0;
+  let branch1: ReadableStream<T> = void 0;
+  let branch2: ReadableStream<T> = void 0;
   let cancelPromise = defer();
-  const pullAlgorithm: PullAlgorithm = () => {
+  const pullAlgorithm: domTypes.PullAlgorithm = () => {
     return ReadableStreamDefaultReaderRead(reader).then(
       (result: { value; done: boolean }) => {
         Assert(typeof result === "object");
@@ -372,7 +365,7 @@ export function ReadableStreamTee(
       }
     );
   };
-  const cancel1Algorithm: CancelAlgorithm = reason => {
+  const cancel1Algorithm: domTypes.CancelAlgorithm = reason => {
     canceled1 = true;
     reason1 = reason;
     if (canceled2) {
@@ -382,7 +375,7 @@ export function ReadableStreamTee(
     }
     return cancelPromise;
   };
-  const cancel2Algorithm: CancelAlgorithm = reason => {
+  const cancel2Algorithm: domTypes.CancelAlgorithm = reason => {
     canceled2 = true;
     reason2 = reason;
     if (canceled1) {
@@ -392,7 +385,7 @@ export function ReadableStreamTee(
     }
     return cancelPromise;
   };
-  const startAlgorithm: StartAlgorithm = () => void 0;
+  const startAlgorithm: domTypes.StartAlgorithm = () => void 0;
   branch1 = CreateReadableStream(
     startAlgorithm,
     pullAlgorithm,
@@ -420,7 +413,7 @@ export async function ReadableStreamPipeTo(
   preventAbort: boolean,
   preventCancel: boolean,
   signal?: domTypes.AbortSignal
-) {
+): Promise<void> {
   Assert(IsReadableStream(source));
   Assert(IsWritableStream(dest));
   Assert(typeof preventCancel === "boolean");
@@ -429,7 +422,9 @@ export async function ReadableStreamPipeTo(
   Assert(signal === void 0 || isAbortSignal(signal));
   Assert(!IsReadableStreamLocked(source));
   Assert(!IsWritableStreamLocked(dest));
-  let reader: ReadableStreamBYOBReader | ReadableStreamDefaultReader;
+  let reader:
+    | domTypes.ReadableStreamBYOBReader
+    | domTypes.ReadableStreamDefaultReader;
   if (IsReadableByteStreamController(source.readableStreamController)) {
     reader = AcquireReadableStreamBYOBReader(source);
   } else {
@@ -438,11 +433,11 @@ export async function ReadableStreamPipeTo(
   const writer = AcquireWritableStreamDefaultWriter(dest);
   let shutingDown = false;
   const promsie = defer();
-  let abortAlgorithm: AbortAlgorithm;
+  let abortAlgorithm: domTypes.AbortAlgorithm;
   if (!signal) {
     abortAlgorithm = () => {
       let error = new Error("aborted");
-      const actions = [];
+      const actions: (() => Promise<unknown>)[] = [];
       if (!preventAbort) {
         actions.push(async () => {
           if (dest.state === "writable") {
@@ -555,7 +550,7 @@ export async function ReadableStreamPipeTo(
 
 export function ReadableStreamAddReadIntoRequest(
   stream: ReadableStream,
-  forAuthorCode
+  forAuthorCode: boolean
 ) {
   Assert(IsReadableStreamBYOBReader(stream.reader));
   const reader = stream.reader as ReadableStreamBYOBReader;
@@ -568,7 +563,7 @@ export function ReadableStreamAddReadIntoRequest(
 
 export function ReadableStreamAddReadRequest(
   stream: ReadableStream,
-  forAuthorCode
+  forAuthorCode: boolean
 ): Promise<{ value; done: boolean }> {
   Assert(IsReadableStreamDefaultReader(stream.reader));
   const reader = stream.reader as ReadableStreamDefaultReader;
@@ -581,7 +576,7 @@ export function ReadableStreamAddReadRequest(
 
 export function ReadableStreamCancel(
   stream: ReadableStream,
-  reason
+  reason: any
 ): Promise<undefined> {
   stream.disturbed = true;
   if (stream.state === "closed") {

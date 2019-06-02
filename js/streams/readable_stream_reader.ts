@@ -4,17 +4,20 @@ import {
   IsReadableStreamLocked,
   ReadableStream,
   ReadableStreamCancel,
-  ReadableStreamCreateReadResult,
+  ReadableStreamCreateReadResult
 } from "./readable_stream";
-import {
-  ReadableStreamBYOBReader
-} from "./readable_stream_byob_reader";
-import { defer, Defer } from "./defer";
+import { ReadableStreamBYOBReader } from "./readable_stream_byob_reader";
+import { defer } from "../defer";
 import { Assert } from "./util";
 
 export class ReadableStreamDefaultReader<T = any>
   implements domTypes.ReadableStreamReader<T> {
-  readRequests: { promise: Defer<any>; forAuthorCode }[];
+  readRequests?: { 
+    promise: domTypes.Defer<any>; 
+    forAuthorCode: boolean
+   }[];
+  closedPromise: domTypes.Defer<void>;
+  ownerReadableStream?: ReadableStream;
 
   constructor(stream: ReadableStream) {
     if (!IsReadableStream(stream)) {
@@ -23,21 +26,30 @@ export class ReadableStreamDefaultReader<T = any>
     if (IsReadableStreamLocked(stream)) {
       throw new TypeError();
     }
-    ReadableStreamReaderGenericInitialize(this, stream);
+    //ReadableStreamReaderGenericInitialize(this, stream);
+    this.ownerReadableStream = stream;
+    stream.reader = this;
+    if (stream.state === "readable") {
+      this.closedPromise = defer();
+    } else if (stream.state === "closed") {
+      this.closedPromise = defer();
+      this.closedPromise.resolve(void 0);
+    } else {
+      Assert(stream.state === "errored");
+      this.closedPromise = defer();
+      this.closedPromise.reject(stream.storedError);
+    }
     this.readRequests = [];
   }
 
-  get closed(): Promise<undefined> {
+  get closed(): Promise<void> {
     if (!IsReadableStreamDefaultReader(this)) {
       return Promise.reject(new TypeError());
     }
     return this.closedPromise;
   }
 
-  closedPromise: Defer<undefined>;
-  ownerReadableStream: ReadableStream;
-
-  cancel(reason?): Promise<void> {
+  cancel(reason?: any): Promise<void> {
     if (!IsReadableStreamDefaultReader(this)) {
       return Promise.reject(new TypeError());
     }
@@ -57,7 +69,7 @@ export class ReadableStreamDefaultReader<T = any>
     return ReadableStreamDefaultReaderRead(this, true);
   }
 
-  releaseLock() {
+  async releaseLock(): Promise<any> {
     if (!IsReadableStreamDefaultReader(this)) {
       return Promise.reject(new TypeError());
     }
@@ -72,14 +84,16 @@ export class ReadableStreamDefaultReader<T = any>
 }
 
 export function IsReadableStreamDefaultReader<T>(
-  a
+  a: any
 ): a is ReadableStreamDefaultReader<T> {
   return typeof a === "object" && a.hasOwnProperty("readRequests");
 }
 
 export function ReadableStreamReaderGenericCancel<T>(
-  reader: domTypes.ReadableStreamBYOBReader | domTypes.ReadableStreamDefaultReader<T>,
-  reason
+  reader:
+    | ReadableStreamBYOBReader
+    | ReadableStreamDefaultReader<T>,
+  reason?: any
 ) {
   const stream = reader.ownerReadableStream;
   Assert(stream !== void 0);

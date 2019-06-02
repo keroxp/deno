@@ -1,7 +1,5 @@
 import {
-  CancelAlgorithm,
   IsReadableStreamLocked,
-  PullAlgorithm,
   ReadableStream,
   ReadableStreamAddReadIntoRequest,
   ReadableStreamAddReadRequest,
@@ -13,8 +11,7 @@ import {
   ReadableStreamGetNumReadIntoRequests,
   ReadableStreamGetNumReadRequests,
   ReadableStreamHasBYOBReader,
-  ReadableStreamHasDefaultReader,
-  StartAlgorithm,
+  ReadableStreamHasDefaultReader
 } from "./readable_stream";
 import {
   ReadableStreamBYOBRequest,
@@ -488,7 +485,7 @@ export function ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue
   }
 }
 
-const TypedArraySizeMap = {
+const TypedArraySizeMap: { [key: string]: [number, any] } = {
   Int8Array: [1, Int8Array],
   Uint8Array: [1, Uint8Array],
   Uint8ClampedArray: [1, Uint8ClampedArray],
@@ -503,7 +500,7 @@ const TypedArraySizeMap = {
 export function ReadableByteStreamControllerPullInto(
   controller: ReadableByteStreamController,
   view: ArrayBufferView,
-  forAuthorCode?: boolean
+  forAuthorCode: boolean
 ): Promise<any> {
   const stream = controller.controlledReadableByteStream;
   let elementSize = 1;
@@ -743,11 +740,11 @@ export function ReadableByteStreamControllerShouldCallPull(
 export function SetUpReadableByteStreamController(
   stream: ReadableStream,
   controller: ReadableByteStreamController,
-  startAlgorithm: StartAlgorithm,
-  pullAlgorithm: PullAlgorithm,
-  cancelAlgorithm: CancelAlgorithm,
+  startAlgorithm: domTypes.StartAlgorithm,
+  pullAlgorithm: domTypes.PullAlgorithm,
+  cancelAlgorithm: domTypes.CancelAlgorithm,
   highWaterMark: number,
-  autoAllocateChunkSize: number
+  autoAllocateChunkSize?: number
 ) {
   Assert(stream.readableStreamController === void 0);
   if (autoAllocateChunkSize !== void 0) {

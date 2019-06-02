@@ -1,13 +1,12 @@
-import { Defer } from "./defer";
+import { defer } from "../defer";
 import {
   IsReadableStream,
   IsReadableStreamLocked,
-  ReadableStream,
+  ReadableStream
 } from "./readable_stream";
 import { Assert, isArrayBufferView } from "./util";
 import {
   ReadableStreamReaderGenericCancel,
-  ReadableStreamReaderGenericInitialize,
   ReadableStreamReaderGenericRelease
 } from "./readable_stream_reader";
 import {
@@ -18,7 +17,10 @@ import {
 import * as domTypes from "../dom_types";
 export class ReadableStreamBYOBReader
   implements domTypes.ReadableStreamReader<ArrayBufferView> {
-  readIntoRequests: { promise: Defer<any>; forAuthorCode: boolean }[];
+  readIntoRequests: { promise: domTypes.Defer<any>; forAuthorCode: boolean }[];
+
+  closedPromise: domTypes.Defer<void>;
+  ownerReadableStream: ReadableStream;
 
   constructor(stream: ReadableStream) {
     if (!IsReadableStream(stream)) {
@@ -30,21 +32,29 @@ export class ReadableStreamBYOBReader
     if (IsReadableStreamLocked(stream)) {
       throw new TypeError();
     }
-    ReadableStreamReaderGenericInitialize(this, stream);
+    // ReadableStreamReaderGenericInitialize(this, stream);
+    this.ownerReadableStream = stream;
+    stream.reader = this;
+    if (stream.state === "readable") {
+      this.closedPromise = defer();
+    } else if (stream.state === "closed") {
+      this.closedPromise = defer();
+      this.closedPromise.resolve(void 0);
+    } else {
+      Assert(stream.state === "errored");
+      this.closedPromise = defer();
+      this.closedPromise.reject(stream.storedError);
+    }
     this.readIntoRequests = [];
   }
 
-  get closed(): Promise<undefined> {
+  get closed(): Promise<void> {
     if (!IsReadableStreamBYOBReader(this)) {
       return Promise.reject(new TypeError());
     }
     return this.closedPromise;
   }
-
-  closedPromise: Defer<undefined>;
-  ownerReadableStream: ReadableStream;
-
-  cancel(reason): Promise<undefined> {
+  cancel(reason?: any): Promise<void> {
     if (!IsReadableStreamBYOBReader(this)) {
       return Promise.reject(new TypeError());
     }

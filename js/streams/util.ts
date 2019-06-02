@@ -4,7 +4,7 @@ export function Assert(cond: boolean, desc?: string) {
   if (cond === false) throw new Error(desc);
 }
 
-export function isArrayBufferView(a): a is ArrayBufferView {
+export function isArrayBufferView(a: any): a is ArrayBufferView {
   return (
     a instanceof Int8Array ||
     a instanceof Uint8Array ||
@@ -19,6 +19,6 @@ export function isArrayBufferView(a): a is ArrayBufferView {
   );
 }
 
-export function isAbortSignal(x): x is domTypes.AbortSignal {
+export function isAbortSignal(x: any): x is domTypes.AbortSignal {
   return typeof x === "object" && x.hasOwnProperty("aborted");
 }
