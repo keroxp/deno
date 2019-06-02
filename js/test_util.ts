@@ -15,6 +15,13 @@ import {
   assertStrictEq
 } from "./deps/https/deno.land/std/testing/asserts.ts";
 
+export {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertStrictEq
+}
+
 interface TestPermissions {
   read?: boolean;
   write?: boolean;

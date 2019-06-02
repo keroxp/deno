@@ -1,10 +1,10 @@
-import * as streams from "@stardazed/streams";
 import * as formData from "./form_data";
 import * as blob from "./blob";
 import * as encoding from "./text_encoding";
 import * as headers from "./headers";
 
 import * as domTypes from "./dom_types";
+import * as streams from "./readable_stream";
 
 const { Headers } = headers;
 
@@ -131,31 +131,38 @@ function hasHeaderValueOf(s: string, value: string): boolean {
 export const BodyUsedError =
   "Failed to execute 'clone' on 'Body': body is already used";
 
-export class Body implements domTypes.Body {
-  protected _stream: domTypes.ReadableStream | null;
+export class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array> {
+  protected readonly _stream: domTypes.ReadableStream<Uint8Array> | null = null;
 
   constructor(protected _bodySource: BodySource, readonly contentType: string) {
     validateBodyType(this, _bodySource);
     this._bodySource = _bodySource;
     this.contentType = contentType;
-    this._stream = null;
-  }
-
-  get body(): domTypes.ReadableStream | null {
-    if (this._stream) {
-      return this._stream;
-    }
-    if (this._bodySource instanceof ReadableStream) {
+    if (_bodySource instanceof ReadableStream) {
       // @ts-ignore
-      this._stream = this._bodySource;
-    }
-    if (typeof this._bodySource === "string") {
-      this._stream = new ReadableStream({
-        start(controller: ReadableStreamController): void {
-          controller.enqueue(this._bodySource);
+      this._stream = _bodySource;
+    } else if (typeof _bodySource === "string") {
+      this._stream = new ReadableStream<Uint8Array>({
+        start: (controller: ReadableStreamController): void => {
+          controller.enqueue(new TextEncoder().encode(_bodySource));
           controller.close();
         }
       });
+    } else if (_bodySource instanceof Uint8Array) {
+      this._stream = new ReadableStream<Uint8Array>({
+        start: controller => {
+          controller.enqueue(_bodySource);
+          controller.close();
+        }
+      })
+    } else if (_bodySource instanceof Blob) {
+
+    }
+  }
+
+  get body(): domTypes.ReadableStream<Uint8Array> | null {
+    if (this._stream) {
+      return this._stream;
     }
     return this._stream;
   }
@@ -345,4 +352,30 @@ export class Body implements domTypes.Body {
       `Body type not yet implemented: ${this._bodySource.constructor.name}`
     );
   }
+
+  get locked(): boolean {
+    return this._stream!.locked;
+  };
+
+  cancel(reason?: any): Promise<void> {
+    return this._stream!.cancel();
+  }
+
+  getReader<M extends "byob">(params?: { mode?: M }): { byob: domTypes.ReadableStreamBYOBReader; undefined: domTypes.ReadableStreamReader<Uint8Array> }[M] {
+    return this._stream!.getReader(params);
+  }
+
+  pipeThrough(sources: { writable: domTypes.WritableStream<Uint8Array>; readable: domTypes.ReadableStream<Uint8Array> }, opts?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean; signal?: domTypes.AbortSignal }): domTypes.ReadableStream<Uint8Array> {
+    return this._stream!.pipeThrough(sources, opts);
+  }
+
+  pipeTo(dest: domTypes.WritableStream<Uint8Array>, opts?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean; signal?: domTypes.AbortSignal }): Promise<void> {
+    return this._stream!.pipeTo(dest, opts);
+  }
+
+  tee(): [domTypes.ReadableStream<Uint8Array>, domTypes.ReadableStream<Uint8Array>] {
+    return this._stream!.tee();
+  }
+
+
 }

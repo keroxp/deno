@@ -159,6 +159,22 @@ testPerm({ net: true }, async function fetchInitBlobBody(): Promise<void> {
   assert(response.headers.get("content-type").startsWith("text/javascript"));
 });
 
+testPerm({net: true}, async function fetchReadableStreamBody(): Promise<void> {
+  const data = "hello,deno";
+  const stream = new ReadableStream<Uint8Array>({
+    start: (controller) => {
+      controller.enqueue(new TextEncoder().encode(data));
+      controller.close()
+    }
+  });
+  const response = await fetch("http://localhost:4545/echo_server", {
+    method: "POST",
+    body: stream
+  });
+  const text = await response.text();
+  assertEquals(text, data);
+});
+
 // TODO(ry) The following tests work but are flaky. There's a race condition
 // somewhere. Here is what one of these flaky failures looks like:
 //

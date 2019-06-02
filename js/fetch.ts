@@ -386,7 +386,7 @@ export async function fetch(
   let url: string;
   let method: string | null = null;
   let headers: domTypes.Headers | null = null;
-  let body: ArrayBufferView | undefined;
+  let body: ReadableStream<Uint8Array> | ArrayBufferView | undefined;
 
   if (typeof input === "string") {
     url = input;
