@@ -349,7 +349,7 @@ export interface ReadableStreamBYOBReader {
 
 export interface ReadableStreamDefaultReader<T=any> extends ReadableStreamReader<T> {}
 
-export type ReadableStreamReadResult<T> = { value: T; done: boolean };
+export type ReadableStreamReadResult<T> = { value?: T; done: boolean };
 export interface WritableStreamConstructor<T = any> extends WritableStream<T> {
   new(
     underlyingSink?: UnderlyingSink<T>,

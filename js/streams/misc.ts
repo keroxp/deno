@@ -136,6 +136,9 @@ export function IsDetachedBuffer(v): boolean {
 export function Assert(cond: boolean, desc?: string) {
   if (cond === false) throw new Error(desc);
 }
+export function AssertDefineed<T>(x: T|undefined): x is T {
+  return x !== void 0;
+}
 
 export function isArrayBufferView(a: any): a is ArrayBufferView {
   return (

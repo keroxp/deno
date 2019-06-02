@@ -97,7 +97,7 @@ export function CreateTransformStream<T>(
   writableSizeAlgorithm: domTypes.SizeAlgorithm = () => 1,
   readableHighWaterMark: number = 1,
   readableSizeAlgorithm: domTypes.SizeAlgorithm = () => 1
-): TransformStream {
+): TransformStream<T> {
   Assert(IsNonNegativeNumber(writableHighWaterMark));
   Assert(IsNonNegativeNumber(readableHighWaterMark));
   const stream = Object.create(TransformStream.prototype);
@@ -166,7 +166,9 @@ export function IsTransformStream(x): x is TransformStream {
   return typeof x === "object" && x.hasOwnProperty("transformStreamController");
 }
 
-export function TransformStreamError(stream: TransformStream, e) {
+export function TransformStreamError(
+  stream: TransformStream,
+  e?: any) {
   ReadableStreamDefaultControllerError(
     stream.readable.readableStreamController,
     e
@@ -227,7 +229,7 @@ export class TransformStreamDefaultController<T = any>
     TransformStreamDefaultControllerEnqueue(this, chunk);
   }
 
-  error(reason) {
+  error(reason?: any) {
     if (!IsTransformStreamDefaultController(this)) {
       throw new TypeError("this is not TransformStreamDefaultController");
     }
@@ -241,9 +243,9 @@ export class TransformStreamDefaultController<T = any>
     TransformStreamDefaultControllerTerminate(this);
   }
 
-  controlledTransformStream: TransformStream<T>;
-  flushAlgorithm: domTypes.FlushAlgorithm;
-  transformAlgorithm: domTypes.TransformAlgorithm<T>;
+  controlledTransformStream?: TransformStream<T>;
+  flushAlgorithm?: domTypes.FlushAlgorithm;
+  transformAlgorithm?: domTypes.TransformAlgorithm<T>;
 }
 
 export function IsTransformStreamDefaultController(
@@ -340,9 +342,9 @@ export function TransformStreamDefaultControllerError(
   TransformStreamError(controller.controlledTransformStream, e);
 }
 
-export function TransformStreamDefaultControllerPerformTransform(
-  controller: TransformStreamDefaultController,
-  chunk
+export function TransformStreamDefaultControllerPerformTransform<T>(
+  controller: TransformStreamDefaultController<T>,
+  chunk: T
 ) {
   controller.transformAlgorithm(chunk).catch(r => {
     TransformStreamError(controller.controlledTransformStream, r);
@@ -362,9 +364,9 @@ export function TransformStreamDefaultControllerTerminate<T>(
   TransformStreamErrorWritableAndUnblockWrite(stream, error);
 }
 
-export function TransformStreamDefaultSinkWriteAlgorithm(
-  stream: TransformStream,
-  chunk
+export function TransformStreamDefaultSinkWriteAlgorithm<T>(
+  stream: TransformStream<T>,
+  chunk: T
 ) {
   Assert(stream.writable.state === "writable");
   const controller = stream.transformStreamController;
@@ -389,7 +391,7 @@ export function TransformStreamDefaultSinkWriteAlgorithm(
 
 export async function TransformStreamDefaultSinkAbortAlgorithm(
   stream: TransformStream,
-  reason
+  reason?: any
 ) {
   TransformStreamError(stream, reason);
 }
@@ -422,7 +424,7 @@ export function TransformStreamDefaultSinkCloseAlgorithm<T>(
 export function TransformStreamDefaultSourcePullAlgorithm(
   stream: TransformStream
 ) {
-  Assert(stream.backpressure);
+  Assert(stream.backpressure !== void 0);
   Assert(stream.backpressureChangePromise !== void 0);
   TransformStreamSetBackpressure(stream, false);
   return stream.backpressureChangePromise;

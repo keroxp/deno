@@ -20,6 +20,7 @@ import {
   WritableStreamDefaultWriterGetDesiredSize,
   WritableStreamDefaultWriterRelease
 } from "./writable_stream";
+import {ReadableStreamReadResult} from "../dom_types";
 
 export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
   disturbed: boolean = false;
@@ -74,7 +75,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     return IsReadableStreamLocked(this);
   }
 
-  cancel(reason?): Promise<void> {
+  cancel(reason?: any): Promise<void> {
     if (IsReadableStream(this)) {
       return Promise.reject(new TypeError());
     }
@@ -273,7 +274,7 @@ export function InitializeReadableStream(stream: ReadableStream) {
   stream.disturbed = false;
 }
 
-export function IsReadableStream(x): x is ReadableStream {
+export function IsReadableStream(x: any ): x is ReadableStream {
   return typeof x === "object" && x.hasOwnProperty("readableStreamController");
 }
 
@@ -299,12 +300,12 @@ export function ReadableStreamTee<T>(
   let canceled2 = false;
   let reason1 = void 0;
   let reason2 = void 0;
-  let branch1: ReadableStream<T> = void 0;
-  let branch2: ReadableStream<T> = void 0;
+  let branch1: ReadableStream<T>;
+  let branch2: ReadableStream<T>;
   let cancelPromise = defer();
   const pullAlgorithm: domTypes.PullAlgorithm = () => {
     return ReadableStreamDefaultReaderRead(reader).then(
-      (result: { value; done: boolean }) => {
+      (result: { value: T; done: boolean }) => {
         Assert(typeof result === "object");
         const { value, done } = result;
         Assert(typeof done === "boolean");
@@ -455,7 +456,7 @@ export async function ReadableStreamPipeTo(
       promsie.resolve();
     }
   };
-  const shutdown = (err?, action?: () => Promise<any>) => {
+  const shutdown = (err?: any, action?: () => Promise<any>) => {
     if (shutingDown) {
       return;
     }
@@ -544,14 +545,14 @@ export function ReadableStreamAddReadIntoRequest(
   return promise;
 }
 
-export function ReadableStreamAddReadRequest(
-  stream: ReadableStream,
+export function ReadableStreamAddReadRequest<T>(
+  stream: ReadableStream<T>,
   forAuthorCode: boolean
-): Promise<{ value; done: boolean }> {
+): Promise<ReadableStreamReadResult<T>> {
   Assert(IsReadableStreamDefaultReader(stream.reader));
   const reader = stream.reader as ReadableStreamDefaultReader;
   Assert(stream.state === "readable" || stream.state === "closed");
-  const promise = defer<{ value; done: boolean }>();
+  const promise = defer<ReadableStreamReadResult<T>>();
   const readIntoRequest = { promise, forAuthorCode };
   reader.readRequests.push(readIntoRequest);
   return promise;
@@ -597,7 +598,7 @@ export function ReadableStreamClose(stream: ReadableStream) {
 }
 
 export function ReadableStreamCreateReadResult<T>(
-  value,
+  value: T | undefined,
   done: boolean,
   forAuthorCode: boolean
 ): domTypes.ReadableStreamReadResult<T> {
@@ -631,10 +632,10 @@ export function ReadableStreamError(stream: ReadableStream, e) {
   //TODO: Set reader.[[closedPromise]].[[PromiseIsHandled]] to true.
 }
 
-export function ReadableStreamFulfillReadIntoRequest(
-  stream: ReadableStream,
-  chunk,
-  done
+export function ReadableStreamFulfillReadIntoRequest<T>(
+  stream: ReadableStream<T>,
+  chunk: T,
+  done: boolean
 ) {
   const reader = stream.reader;
   const req = (<ReadableStreamBYOBReader>reader).readIntoRequests.shift();
@@ -644,9 +645,9 @@ export function ReadableStreamFulfillReadIntoRequest(
 }
 
 export function ReadableStreamFulfillReadRequest<T>(
-  stream: ReadableStream,
-  chunk,
-  done
+  stream: ReadableStream<T>,
+  chunk: T,
+  done: boolean
 ) {
   const reader = stream.reader;
   const req = (<ReadableStreamDefaultReader<T>>reader).readRequests.shift();
@@ -659,7 +660,7 @@ export function ReadableStreamGetNumReadIntoRequests(stream: ReadableStream) {
   return (<ReadableStreamBYOBReader>stream.reader).readIntoRequests.length;
 }
 
-export function ReadableStreamGetNumReadRequests<T>(stream) {
+export function ReadableStreamGetNumReadRequests<T>(stream: ReadableStream<T>) {
   return (<ReadableStreamDefaultReader<T>>stream.reader).readRequests.length;
 }
 
@@ -671,7 +672,7 @@ export function ReadableStreamHasBYOBReader(stream: ReadableStream): boolean {
   return IsReadableStreamBYOBReader(reader);
 }
 
-export function ReadableStreamHasDefaultReader(stream): boolean {
+export function ReadableStreamHasDefaultReader(stream: ReadableStream<T>): boolean {
   const reader = stream.reader;
   if (reader === void 0) {
     return false;
@@ -806,13 +807,13 @@ export function ReadableStreamReaderGenericRelease<T>(
 export function ReadableStreamDefaultReaderRead<T>(
   reader: ReadableStreamDefaultReader<T>,
   forAuthorCode: boolean = false
-): Promise<{ value; done: boolean }> {
+): Promise<ReadableStreamReadResult<T>> {
   const stream = reader.ownerReadableStream;
   Assert(stream !== void 0);
   stream.disturbed = true;
   if (stream.state === "closed") {
     return Promise.resolve(
-      ReadableStreamCreateReadResult(void 0, true, forAuthorCode)
+      ReadableStreamCreateReadResult<T>(void 0, true, forAuthorCode)
     );
   }
   if (stream.state === "errored") {
@@ -911,23 +912,23 @@ export type PullIntoDescriptor = {
 };
 
 export abstract class ReadableStreamControllerBase {
-  autoAllocateChunkSize: number;
+  autoAllocateChunkSize?: number;
   cancelAlgorithm?: domTypes.CancelAlgorithm;
-  closeRequested: boolean;
-  pullAgain: boolean;
+  closeRequested?: boolean;
+  pullAgain?: boolean;
 
   pullAlgorithm?: domTypes.PullAlgorithm;
 
-  pulling: boolean;
-  pendingPullIntos: PullIntoDescriptor[];
-  queue: {
+  pulling?: boolean;
+  pendingPullIntos?: PullIntoDescriptor[];
+  queue?: {
     buffer: ArrayBuffer;
     byteLength: number;
     byteOffset: number;
   }[];
-  queueTotalSize;
-  started: boolean;
-  strategyHWM: number;
+  queueTotalSize?: number;
+  started?: boolean;
+  strategyHWM?: number;
 }
 
 export class ReadableStreamDefaultController<T>
@@ -938,8 +939,8 @@ export class ReadableStreamDefaultController<T>
     throw new TypeError();
   }
 
-  controlledReadableStream: ReadableStream;
-  strategySizeAlgorithm: (chunk) => number;
+  controlledReadableStream?: ReadableStream;
+  strategySizeAlgorithm?: (chunk: T) => number;
 
   get desiredSize(): number|null {
     if (!IsReadableStreamDefaultController(this)) {
@@ -968,14 +969,14 @@ export class ReadableStreamDefaultController<T>
     return ReadableStreamDefaultControllerEnqueue(this, chunk);
   }
 
-  error(e): void {
+  error(e?: any): void {
     if (!IsReadableStreamDefaultController(this)) {
       throw new TypeError();
     }
     ReadableStreamDefaultControllerError(this, e);
   }
 
-  CancelSteps(reason): Promise<any> {
+  CancelSteps(reason?: any): Promise<any> {
     ResetQueue(this);
     const result = this.cancelAlgorithm(reason);
     ReadableStreamDefaultControllerClearAlgorithms(this);
@@ -1003,7 +1004,7 @@ export class ReadableStreamDefaultController<T>
 }
 
 export function IsReadableStreamDefaultController<T>(
-  x
+  x: any
 ): x is ReadableStreamDefaultController<T> {
   return typeof x === "object" && x.hasOwnProperty("controlledReadableStream");
 }

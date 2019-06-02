@@ -8,13 +8,13 @@ import {
   PeekQueueValue,
   DequeueValue,
   InvokeOrNoop,
-  CreateAlgorithmFromUnderlyingMethod
+  CreateAlgorithmFromUnderlyingMethod, AssertDefineed
 } from "./misc";
 import { Assert } from "./misc";
 import * as domTypes from "../dom_types";
 
 export class WritableStream<T = any> {
-  backpressure;
+  backpressure?: any;
   closeRequest?: domTypes.Defer<any>;
   inFlightWriteRequest?: domTypes.Defer<any>;
   inFlightCloseRequest?: domTypes.Defer<any>;
@@ -58,7 +58,7 @@ export class WritableStream<T = any> {
     return IsWritableStreamLocked(this);
   }
 
-  async abort(reason) {
+  async abort(reason?: any) {
     if (!IsWritableStream(this)) {
       throw new TypeError("this is not writable stream");
     }
@@ -93,8 +93,8 @@ export function CreateWritableStream<T>(
   Assert(IsNonNegativeNumber(highWaterMark));
   const stream = Object.create(WritableStream.prototype);
   InitializeWritableStream(stream);
-  const controller = createWritableStreamDefaultController();
-  SetUpWritableStreamDefaultController({
+  const controller = createWritableStreamDefaultController<T>();
+  SetUpWritableStreamDefaultController<T>({
     stream,
     controller,
     startAlgorithm,
@@ -119,7 +119,7 @@ export function InitializeWritableStream(stream: WritableStream) {
   stream.backpressure = false;
 }
 
-export function IsWritableStream(x): x is WritableStream {
+export function IsWritableStream(x : any): x is WritableStream {
   return typeof x === "object" && x.hasOwnProperty("writableStreamController");
 }
 
@@ -130,7 +130,7 @@ export function IsWritableStreamLocked(stream: WritableStream) {
 
 export async function WritableStreamAbort(
   stream: WritableStream,
-  reason
+  reason?: any
 ): Promise<any> {
   const { state } = stream;
   if (state === "closed" || state === "errored") {
@@ -548,7 +548,7 @@ export function WritableStreamDefaultWriterRelease<T>(
   writer: WritableStreamDefaultWriter<T>
 ) {
   const stream = writer.ownerWritableStream;
-  Assert(stream !== void 0, "stream is undefined");
+  if (!stream) throw new TypeError("stream is undefined");
   Assert(stream.writer === writer, "writer is not identical");
   const releasedError = new TypeError();
   WritableStreamDefaultWriterEnsureReadyPromiseRejected(writer, releasedError);
@@ -559,10 +559,10 @@ export function WritableStreamDefaultWriterRelease<T>(
 
 export async function WritableStreamDefaultWriterWrite<T>(
   writer: WritableStreamDefaultWriter<T>,
-  chunk
+  chunk: T
 ): Promise<void> {
   const stream = writer.ownerWritableStream;
-  Assert(stream !== void 0);
+  if (!stream) throw new TypeError("stream is undefined");
   const controller = stream.writableStreamController;
   const chunkSize = WritableStreamDefaultControllerGetChunkSize(
     controller,
@@ -598,7 +598,7 @@ export function createWritableStreamDefaultController<
 >(): WritableStreamDefaultController<T> {
   const ret = Object.create(WritableStreamDefaultController.prototype);
   ret[ErrorSteps] = () => ResetQueue(ret);
-  ret[AbortSteps] = reason => {
+  ret[AbortSteps] = (reason?: any) => {
     const result = ret.abortAlgorithm(reason);
     WritableStreamDefaultControllerClearAlgorithms(ret);
     return result;
@@ -641,7 +641,7 @@ export function IsWritableStreamDefaultController<T>(
 }
 
 export function SetUpWritableStreamDefaultController<T>(params: {
-  stream: WritableStream;
+  stream: WritableStream<T>;
   controller: WritableStreamDefaultController<T>;
   startAlgorithm: domTypes.StartAlgorithm;
   writeAlgorithm: domTypes.WriteAlgorithm<T>;
@@ -695,7 +695,7 @@ export function SetUpWritableStreamDefaultControllerFromUnderlyingSink<T>(
   sizeAlgorithm: domTypes.SizeAlgorithm
 ) {
   Assert(underlyingSink !== void 0);
-  const controller = createWritableStreamDefaultController();
+  const controller = createWritableStreamDefaultController<T>();
   const startAlgorithm = () =>
     InvokeOrNoop(underlyingSink, "start", controller);
   const writeAlgorithm = CreateAlgorithmFromUnderlyingMethod(
@@ -714,7 +714,7 @@ export function SetUpWritableStreamDefaultControllerFromUnderlyingSink<T>(
     "abort",
     1
   );
-  SetUpWritableStreamDefaultController({
+  SetUpWritableStreamDefaultController<T>({
     stream,
     controller,
     startAlgorithm,
@@ -744,7 +744,7 @@ export function WritableStreamDefaultControllerClose<T>(
 
 export function WritableStreamDefaultControllerGetChunkSize<T>(
   controller: WritableStreamDefaultController<T>,
-  chunk
+  chunk: T,
 ): number {
   try {
     return controller.strategySizeAlgorithm(chunk);
@@ -816,7 +816,7 @@ export function WritableStreamDefaultControllerAdvanceQueueIfNeeded<T>(
 
 export function WritableStreamDefaultControllerErrorIfNeeded<T>(
   controller: WritableStreamDefaultController<T>,
-  error
+  error?: any
 ) {
   if (controller.controlledWritableStream.state === "writable") {
     WritableStreamDefaultControllerError(controller, error);
@@ -843,7 +843,7 @@ export function WritableStreamDefaultControllerProcessClose<T>(
 
 export function WritableStreamDefaultControllerProcessWrite<T>(
   controller: WritableStreamDefaultController<T>,
-  chunk
+  chunk: T
 ) {
   const stream = controller.controlledWritableStream;
   WritableStreamMarkFirstWriteRequestInFlight(stream);
@@ -869,7 +869,7 @@ export function WritableStreamDefaultControllerGetBackpressure<T>(
 
 export function WritableStreamDefaultControllerError<T>(
   controller: WritableStreamDefaultController<T>,
-  error
+  error?: any
 ) {
   const stream = controller.controlledWritableStream;
   Assert(stream.state === "writable");
