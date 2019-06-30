@@ -8,10 +8,10 @@
 // descriptors". This module implements a global resource table. Ops (AKA
 // handlers) look up resources by their integer id here.
 
-use crate::errors;
-use crate::errors::bad_resource;
-use crate::errors::DenoError;
-use crate::errors::DenoResult;
+use crate::deno_error;
+use crate::deno_error::bad_resource;
+use crate::deno_error::DenoError;
+use crate::deno_error::DenoResult;
 use crate::http_body::HttpBody;
 use crate::repl::Repl;
 use crate::state::WorkerChannels;
@@ -171,12 +171,49 @@ impl Resource {
     }
   }
 
+  /// Track the current task (for TcpListener resource).
+  /// Throws an error if another task is already tracked.
+  pub fn track_task(&mut self) -> Result<(), std::io::Error> {
+    let mut table = RESOURCE_TABLE.lock().unwrap();
+    // Only track if is TcpListener.
+    if let Some(Repr::TcpListener(_, t)) = table.get_mut(&self.rid) {
+      // Currently, we only allow tracking a single accept task for a listener.
+      // This might be changed in the future with multiple workers.
+      // Caveat: TcpListener by itself also only tracks an accept task at a time.
+      // See https://github.com/tokio-rs/tokio/issues/846#issuecomment-454208883
+      if t.is_some() {
+        return Err(std::io::Error::new(
+          std::io::ErrorKind::Other,
+          "Another accept task is ongoing",
+        ));
+      }
+      t.replace(futures::task::current());
+    }
+    Ok(())
+  }
+
+  /// Stop tracking a task (for TcpListener resource).
+  /// Happens when the task is done and thus no further tracking is needed.
+  pub fn untrack_task(&mut self) {
+    let mut table = RESOURCE_TABLE.lock().unwrap();
+    // Only untrack if is TcpListener.
+    if let Some(Repr::TcpListener(_, t)) = table.get_mut(&self.rid) {
+      if t.is_some() {
+        t.take();
+      }
+    }
+  }
+
   // close(2) is done by dropping the value. Therefore we just need to remove
   // the resource from the RESOURCE_TABLE.
   pub fn close(&self) {
     let mut table = RESOURCE_TABLE.lock().unwrap();
-    let r = table.remove(&self.rid);
-    assert!(r.is_some());
+    let r = table.remove(&self.rid).unwrap();
+    // If TcpListener, we must kill all pending accepts!
+    if let Repr::TcpListener(_, Some(t)) = r {
+      // Call notify on the tracked task, so that they would error out.
+      t.notify();
+    }
   }
 
   pub fn shutdown(&mut self, how: Shutdown) -> Result<(), DenoError> {
@@ -335,10 +372,9 @@ impl Future for WorkerReceiver {
     let mut table = RESOURCE_TABLE.lock().unwrap();
     let maybe_repr = table.get_mut(&self.rid);
     match maybe_repr {
-      Some(Repr::Worker(ref mut wc)) => wc
-        .1
-        .poll()
-        .map_err(|err| errors::new(errors::ErrorKind::Other, err.to_string())),
+      Some(Repr::Worker(ref mut wc)) => wc.1.poll().map_err(|err| {
+        deno_error::new(deno_error::ErrorKind::Other, err.to_string())
+      }),
       _ => Err(bad_resource()),
     }
   }
@@ -361,10 +397,9 @@ impl Stream for WorkerReceiverStream {
     let mut table = RESOURCE_TABLE.lock().unwrap();
     let maybe_repr = table.get_mut(&self.rid);
     match maybe_repr {
-      Some(Repr::Worker(ref mut wc)) => wc
-        .1
-        .poll()
-        .map_err(|err| errors::new(errors::ErrorKind::Other, err.to_string())),
+      Some(Repr::Worker(ref mut wc)) => wc.1.poll().map_err(|err| {
+        deno_error::new(deno_error::ErrorKind::Other, err.to_string())
+      }),
       _ => Err(bad_resource()),
     }
   }
@@ -457,29 +492,19 @@ pub fn get_repl(rid: ResourceId) -> DenoResult<Arc<Mutex<Repl>>> {
   }
 }
 
-pub fn lookup(rid: ResourceId) -> Option<Resource> {
-  debug!("resource lookup {}", rid);
-  let table = RESOURCE_TABLE.lock().unwrap();
-  table.get(&rid).map(|_| Resource { rid })
-}
-
-// TODO(kevinkassimo): revamp this after the following lands:
+// TODO: revamp this after the following lands:
 // https://github.com/tokio-rs/tokio/pull/785
-pub fn seek(
-  resource: Resource,
-  offset: i32,
-  whence: u32,
-) -> Box<dyn Future<Item = (), Error = DenoError> + Send> {
+pub fn get_file(rid: ResourceId) -> DenoResult<std::fs::File> {
   let mut table = RESOURCE_TABLE.lock().unwrap();
   // We take ownership of File here.
   // It is put back below while still holding the lock.
-  let maybe_repr = table.remove(&resource.rid);
+  let maybe_repr = table.remove(&rid);
+
   match maybe_repr {
-    None => panic!("bad rid"),
-    Some(Repr::FsFile(f)) => {
+    Some(Repr::FsFile(r)) => {
       // Trait Clone not implemented on tokio::fs::File,
       // so convert to std File first.
-      let std_file = f.into_std();
+      let std_file = r.into_std();
       // Create a copy and immediately put back.
       // We don't want to block other resource ops.
       // try_clone() would yield a copy containing the same
@@ -488,36 +513,49 @@ pub fn seek(
       // to write back.
       let maybe_std_file_copy = std_file.try_clone();
       // Insert the entry back with the same rid.
-      table.insert(
-        resource.rid,
-        Repr::FsFile(tokio_fs::File::from_std(std_file)),
-      );
-      // Translate seek mode to Rust repr.
-      let seek_from = match whence {
-        0 => SeekFrom::Start(offset as u64),
-        1 => SeekFrom::Current(i64::from(offset)),
-        2 => SeekFrom::End(i64::from(offset)),
-        _ => {
-          return Box::new(futures::future::err(errors::new(
-            errors::ErrorKind::InvalidSeekMode,
-            format!("Invalid seek mode: {}", whence),
-          )));
-        }
-      };
+      table.insert(rid, Repr::FsFile(tokio_fs::File::from_std(std_file)));
+
       if maybe_std_file_copy.is_err() {
-        return Box::new(futures::future::err(DenoError::from(
-          maybe_std_file_copy.unwrap_err(),
-        )));
+        return Err(DenoError::from(maybe_std_file_copy.unwrap_err()));
       }
-      let mut std_file_copy = maybe_std_file_copy.unwrap();
-      Box::new(futures::future::lazy(move || {
-        let result = std_file_copy
-          .seek(seek_from)
-          .map(|_| {})
-          .map_err(DenoError::from);
-        futures::future::result(result)
-      }))
+
+      let std_file_copy = maybe_std_file_copy.unwrap();
+
+      Ok(std_file_copy)
     }
-    _ => panic!("cannot seek"),
+    _ => Err(bad_resource()),
+  }
+}
+
+pub fn lookup(rid: ResourceId) -> Option<Resource> {
+  debug!("resource lookup {}", rid);
+  let table = RESOURCE_TABLE.lock().unwrap();
+  table.get(&rid).map(|_| Resource { rid })
+}
+
+pub fn seek(
+  resource: Resource,
+  offset: i32,
+  whence: u32,
+) -> Box<dyn Future<Item = (), Error = DenoError> + Send> {
+  // Translate seek mode to Rust repr.
+  let seek_from = match whence {
+    0 => SeekFrom::Start(offset as u64),
+    1 => SeekFrom::Current(i64::from(offset)),
+    2 => SeekFrom::End(i64::from(offset)),
+    _ => {
+      return Box::new(futures::future::err(deno_error::new(
+        deno_error::ErrorKind::InvalidSeekMode,
+        format!("Invalid seek mode: {}", whence),
+      )));
+    }
+  };
+
+  match get_file(resource.rid) {
+    Ok(mut file) => Box::new(futures::future::lazy(move || {
+      let result = file.seek(seek_from).map(|_| {}).map_err(DenoError::from);
+      futures::future::result(result)
+    })),
+    Err(err) => Box::new(futures::future::err(err)),
   }
 }

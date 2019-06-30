@@ -12,7 +12,6 @@ import { read, close } from "./files";
 import { Buffer } from "./buffer";
 import { FormData } from "./form_data";
 import { URLSearchParams } from "./url_search_params";
-import { ReadableStream } from "./readable_stream";
 
 function getHeaderValueParams(value: string): Map<string, string> {
   const params = new Map();
@@ -31,17 +30,14 @@ function hasHeaderValueOf(s: string, value: string): boolean {
   return new RegExp(`^${value}[\t\s]*;?`).test(s);
 }
 
-class Body
-  implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.ReadCloser {
+class Body implements domTypes.Body, domTypes.ReadableStream, io.ReadCloser {
   bodyUsed = false;
   private _bodyPromise: null | Promise<ArrayBuffer> = null;
   private _data: ArrayBuffer | null = null;
   readonly locked: boolean = false; // TODO
-  readonly body: null | domTypes.ReadableStream<Uint8Array>;
+  readonly body: null | Body = this;
 
-  constructor(private rid: number, readonly contentType: string) {
-    this.body = new ReadableStream<Uint8Array>();
-  }
+  constructor(private rid: number, readonly contentType: string) {}
 
   private async _bodyBuffer(): Promise<ArrayBuffer> {
     assert(this._bodyPromise == null);
@@ -231,49 +227,27 @@ class Body
   }
 
   async cancel(): Promise<void> {
-    return this.body!.cancel();
+    return notImplemented();
   }
 
-  getReader() {
-    return this.body!.getReader();
-  }
-
-  pipeTo(
-    dest: domTypes.WritableStream<Uint8Array>,
-    opts?: {
-      preventClose?: boolean;
-      preventAbort?: boolean;
-      preventCancel?: boolean;
-      signal?: domTypes.AbortSignal;
-    }
-  ): Promise<void> {
-    return this.body!.pipeTo(dest, opts);
-  }
-  pipeThrough(
-    sources: {
-      writable: domTypes.WritableStream<Uint8Array>;
-      readable: domTypes.ReadableStream<Uint8Array>;
-    },
-    opts?: {
-      preventClose?: boolean;
-      preventAbort?: boolean;
-      preventCancel?: boolean;
-      signal?: domTypes.AbortSignal;
-    }
-  ): domTypes.ReadableStream<Uint8Array> {
-    return this.body!.pipeThrough(sources, opts);
+  getReader(): domTypes.ReadableStreamReader {
+    return notImplemented();
   }
 
   tee(): [domTypes.ReadableStream, domTypes.ReadableStream] {
-    return this.body!.tee();
+    return notImplemented();
+  }
+
+  [Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
+    return io.toAsyncIterator(this);
   }
 }
 
-class Response implements domTypes.Response {
+export class Response implements domTypes.Response {
   readonly url: string = "";
   statusText = "FIXME"; // TODO
   readonly type = "basic"; // TODO
-  redirected = false; // TODO
+  readonly redirected: boolean;
   headers: domTypes.Headers;
   readonly trailer: Promise<domTypes.Headers>;
   bodyUsed = false;
@@ -283,6 +257,7 @@ class Response implements domTypes.Response {
     readonly status: number,
     headersList: Array<[string, string]>,
     rid: number,
+    redirected_: boolean,
     body_: null | Body = null
   ) {
     this.trailer = createResolvable();
@@ -294,6 +269,8 @@ class Response implements domTypes.Response {
     } else {
       this.body = body_;
     }
+
+    this.redirected = redirected_;
   }
 
   async arrayBuffer(): Promise<ArrayBuffer> {
@@ -334,7 +311,13 @@ class Response implements domTypes.Response {
       headersList.push(header);
     }
 
-    return new Response(this.status, headersList, -1, this.body);
+    return new Response(
+      this.status,
+      headersList,
+      -1,
+      this.redirected,
+      this.body
+    );
   }
 }
 
@@ -378,6 +361,29 @@ function deserializeHeaderFields(m: msg.HttpHeader): Array<[string, string]> {
   return out;
 }
 
+async function getFetchRes(
+  url: string,
+  method: string | null,
+  headers: domTypes.Headers | null,
+  body: ArrayBufferView | undefined
+): Promise<msg.FetchRes> {
+  // Send Fetch message
+  const builder = flatbuffers.createBuilder();
+  const headerOff = msgHttpRequest(builder, url, method, headers);
+  const resBase = await sendAsync(
+    builder,
+    msg.Any.Fetch,
+    msg.Fetch.createFetch(builder, headerOff),
+    body
+  );
+
+  // Decode FetchRes
+  assert(msg.Any.FetchRes === resBase.innerType());
+  const inner = new msg.FetchRes();
+  assert(resBase.inner(inner) != null);
+  return inner;
+}
+
 /** Fetch a resource from the network. */
 export async function fetch(
   input: domTypes.Request | string,
@@ -386,7 +392,9 @@ export async function fetch(
   let url: string;
   let method: string | null = null;
   let headers: domTypes.Headers | null = null;
-  let body: ReadableStream<Uint8Array> | ArrayBufferView | undefined;
+  let body: ArrayBufferView | undefined;
+  let redirected = false;
+  let remRedirectCount = 20; // TODO: use a better way to handle
 
   if (typeof input === "string") {
     url = input;
@@ -433,30 +441,55 @@ export async function fetch(
     url = input.url;
     method = input.method;
     headers = input.headers;
+
+    //@ts-ignore
+    if (input._bodySource) {
+      body = new DataView(await input.arrayBuffer());
+    }
   }
 
-  // Send Fetch message
-  const builder = flatbuffers.createBuilder();
-  const headerOff = msgHttpRequest(builder, url, method, headers);
-  const resBase = await sendAsync(
-    builder,
-    msg.Any.Fetch,
-    msg.Fetch.createFetch(builder, headerOff),
-    body
-  );
+  while (remRedirectCount) {
+    const inner = await getFetchRes(url, method, headers, body);
 
-  // Decode FetchRes
-  assert(msg.Any.FetchRes === resBase.innerType());
-  const inner = new msg.FetchRes();
-  assert(resBase.inner(inner) != null);
+    const header = inner.header()!;
+    const bodyRid = inner.bodyRid();
+    assert(!header.isRequest());
+    const status = header.status();
 
-  const header = inner.header()!;
-  const bodyRid = inner.bodyRid();
-  assert(!header.isRequest());
-  const status = header.status();
+    const headersList = deserializeHeaderFields(header);
 
-  const headersList = deserializeHeaderFields(header);
-
-  const response = new Response(status, headersList, bodyRid);
-  return response;
+    const response = new Response(status, headersList, bodyRid, redirected);
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      // We're in a redirect status
+      switch ((init && init.redirect) || "follow") {
+        case "error":
+          throw notImplemented();
+        case "manual":
+          throw notImplemented();
+        case "follow":
+        default:
+          let redirectUrl = response.headers.get("Location");
+          if (redirectUrl == null) {
+            return response; // Unspecified
+          }
+          if (
+            !redirectUrl.startsWith("http://") &&
+            !redirectUrl.startsWith("https://")
+          ) {
+            redirectUrl =
+              url.split("//")[0] +
+              "//" +
+              url.split("//")[1].split("/")[0] +
+              redirectUrl; // TODO: handle relative redirection more gracefully
+          }
+          url = redirectUrl;
+          redirected = true;
+          remRedirectCount--;
+      }
+    } else {
+      return response;
+    }
+  }
+  // Return a network error due to too many redirections
+  throw notImplemented();
 }

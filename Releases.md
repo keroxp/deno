@@ -6,6 +6,115 @@ https://github.com/denoland/deno/releases
 We also have one-line install commands at
 https://github.com/denoland/deno_install
 
+### v0.10.0 / 2019.06.25
+
+In deno:
+
+- feat: improve module download progress (#2576)
+- feat: improve 'deno install' (#2551)
+- feat: log permission access with -L=info (#2518)
+- feat: redirect process stdio to file (#2554)
+- fix: add encodeInto to TextEncoder (#2558)
+- fix: clearTimeout should convert to number (#2539)
+- fix: clearTimeout.name / clearInterval.name (#2540)
+- fix: event `isTrusted` is enumerable (#2543)
+- fix: fetch() body now async iterable (#2563)
+- fix: fetch() now handles redirects (#2561)
+- fix: prevent multiple downloads of modules (#2477)
+- fix: silent failure of WebAssembly.instantiate() (#2548)
+- fix: urlSearchParams custom symbol iterator (#2537)
+
+In deno_std
+
+- feat(testing): Pretty output + Silent mode (denoland/deno_std#314)
+- feat: Add os/userHomeDir (denoland/deno_std#521)
+- feat: add catjson example (denoland/deno_std#517)
+- feat: add encoding/hex module (denoland/deno_std#434)
+- feat: improve installer (denoland/deno_std#512, denoland/deno_std#510,
+  denoland/deno_std#499)
+- fix: bundle/run handles Deno.args better. (denoland/deno_std#514)
+- fix: file server should order filenames (denoland/deno_std#511)
+
+### v0.9.0 / 2019.06.15
+
+In deno:
+
+- feat: add deno install command (#2522)
+- feat: URLSearchParams should work with custom iterator (#2512)
+- feat: default output filename for deno bundle (#2484)
+- feat: expose window.Response (#2515)
+- feat: Add --seed for setting RNG seed (#2483)
+- feat: Import maps (#2360)
+- fix: setTimeout API adjustments (#2511, #2497)
+- fix: URL and URLSearchParams bugs (#2495, #2488)
+- fix: make global request type an interface (#2503)
+- upgrade: V8 to 7.7.37 (#2492)
+
+In deno_std:
+
+- feat: installer (denoland/deno_std#489)
+- feat: bundle loader (denoland/deno_std#480)
+
+### v0.8.0 / 2019.06.08
+
+In deno:
+
+- feat: Add 'bundle' subcommand. (#2467)
+- feat: Handle compiler diagnostics in Rust (#2445)
+- feat: add deno fmt --stdout option (#2439)
+- feat: CLI defaults to run subcommand (#2451)
+- fix: Compiler exit before emit if preEmitDiagnostics found (#2441)
+- fix: Deno.core.evalContext & Deno.core.print (#2465)
+- fix: Improve setup.py for package managers (#2423)
+- fix: Use body when Request instance is passed to fetch (#2435)
+- perf: Create fewer threads (#2476)
+- upgrade: TypeScript to 3.5.1 (#2437)
+- upgrade: std/prettier@0.5.0 to std/prettier@0.7.0 (#2425)
+
+In deno_std:
+
+- ci: Check file changes during test (denoland/deno_std#476)
+- ci: Implement strict mode (denoland/deno_std#453)
+- ci: Make CI config DRY (denoland/deno_std#470)
+- encoding/csv: add easy api (denoland/deno_std#458)
+- io: make port BufReader.readByte() return
+  `number | EOF`(denoland/deno_std#472)
+- ws: Add sec-websocket-version to handshake header (denoland/deno_std#468)
+
+### v0.7.0 / 2019.05.29
+
+In deno:
+
+- TS compiler refactor (#2380)
+- add EventTarget implementation (#2377)
+- add module and line no for Rust logger (#2409)
+- re-fix permissions for dial and listen (#2400)
+- Fix concurrent accepts (#2403)
+- Rename --allow-high-precision to --allow-hrtime (#2398)
+- Use tagged version of prettier in CLI (#2387)
+
+In deno_std:
+
+- io: refactor BufReader/Writer interfaces to be more idiomatic
+  (denoland/deno_std#444)
+- http: add rfc7230 handling (denoland/deno_std#451)
+- http: add ParseHTTPVersion (denoland/deno_std#452)
+- rename strings/strings.ts to strings/mod.ts (denoland/deno_std#449)
+- Prettier: support for specified files and glob mode (denoland/deno_std#438)
+- Add encoding/csv (denoland/deno_std#432)
+- rename bytes/bytes.ts to bytes/mod.ts
+- remove function prefix of bytes module
+- add bytes.repeat() (denoland/deno_std#446)
+- http: fix content-length checking (denoland/deno_std#437)
+- Added isGlob function (denoland/deno_std#433)
+- http: send an empty response body if none is provided (denoland/deno_std#429)
+- http: make server handle bad client requests properly (denoland/deno_std#419)
+- fix(fileserver): wrong url href of displayed files (denoland/deno_std#426)
+- http: delete conn parameter in readRequest (denoland/deno_std#430)
+- Rename //multipart/multipart.ts to //mime/multipart.ts (denoland/deno_std#420)
+- feat(prettier): output to stdout instead of write file by default unless
+  specified --write flag (denoland/deno_std#332)
+
 ### v0.6.0 / 2019.05.20
 
 In deno:

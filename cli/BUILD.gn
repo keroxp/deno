@@ -3,8 +3,8 @@ import("//build/toolchain/cc_wrapper.gni")
 import("//build_extra/flatbuffers/flatbuffer.gni")
 import("//build_extra/flatbuffers/rust/rust_flatbuffer.gni")
 import("//build_extra/rust/rust.gni")
+import("//third_party/v8/gni/snapshot_toolchain.gni")
 import("//third_party/v8/gni/v8.gni")
-import("//third_party/v8/snapshot_toolchain.gni")
 import("../deno.gni")
 
 main_extern = [
@@ -26,9 +26,11 @@ main_extern_rlib = [
   "dirs",
   "flatbuffers",
   "futures",
+  "fwdansi",
   "http",
   "hyper",
   "hyper_rustls",
+  "indexmap",
   "lazy_static",
   "libc",
   "log",
@@ -41,6 +43,7 @@ main_extern_rlib = [
   "serde_json",
   "source_map_mappings",
   "tempfile",
+  "termcolor",
   "tokio",
   "tokio_executor",
   "tokio_fs",
@@ -74,10 +77,12 @@ ts_sources = [
   "../js/core.ts",
   "../js/custom_event.ts",
   "../js/deno.ts",
+  "../js/diagnostics.ts",
   "../js/dir.ts",
   "../js/dispatch.ts",
   "../js/dispatch_minimal.ts",
   "../js/dom_types.ts",
+  "../js/dom_util.ts",
   "../js/errors.ts",
   "../js/event.ts",
   "../js/event_target.ts",

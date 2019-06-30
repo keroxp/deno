@@ -42,6 +42,10 @@ export function createThroughputColumns(data) {
   return createColumns(data, "throughput");
 }
 
+export function createProxyColumns(data) {
+  return createColumns(data, "req_per_sec_proxy");
+}
+
 export function createReqPerSecColumns(data) {
   return createColumns(data, "req_per_sec");
 }
@@ -135,7 +139,8 @@ function generate(
   const yAxis = {
     padding: { bottom: 0 },
     min: 0,
-    label: yLabel
+    label: yLabel,
+    tick: null
   };
   if (yTickFormat) {
     yAxis.tick = {
@@ -184,7 +189,7 @@ function formatSecsAsMins(t) {
 }
 
 /**
- * @param dataUrl The url of benchramk data json.
+ * @param dataUrl The url of benchmark data json.
  */
 export function drawCharts(dataUrl) {
   // TODO Using window["location"]["hostname"] instead of
@@ -197,15 +202,41 @@ export function drawCharts(dataUrl) {
   return drawChartsFromBenchmarkData(dataUrl);
 }
 
+const proxyFields = [
+  "req_per_sec"
+  //"max_latency"
+];
+function extractProxyFields(data) {
+  for (const row of data) {
+    for (const field of proxyFields) {
+      const d = row[field];
+      if (!d) continue;
+      const name = field + "_proxy";
+      const newField = {};
+      row[name] = newField;
+      for (const k of Object.getOwnPropertyNames(d)) {
+        if (k.includes("_proxy")) {
+          const v = d[k];
+          delete d[k];
+          newField[k] = v;
+        }
+      }
+    }
+  }
+}
 /**
  * Draws the charts from the benchmark data stored in gh-pages branch.
  */
 export async function drawChartsFromBenchmarkData(dataUrl) {
   const data = await getJson(dataUrl);
 
+  // hack to extract proxy fields from req/s fields
+  extractProxyFields(data);
+
   const execTimeColumns = createExecTimeColumns(data);
   const throughputColumns = createThroughputColumns(data);
   const reqPerSecColumns = createReqPerSecColumns(data);
+  const proxyColumns = createProxyColumns(data);
   const maxLatencyColumns = createMaxLatencyColumns(data);
   const maxMemoryColumns = createMaxMemoryColumns(data);
   const binarySizeColumns = createBinarySizeColumns(data);
@@ -235,9 +266,36 @@ export async function drawChartsFromBenchmarkData(dataUrl) {
   gen("#exec-time-chart", execTimeColumns, "seconds", logScale);
   gen("#throughput-chart", throughputColumns, "seconds", logScale);
   gen("#req-per-sec-chart", reqPerSecColumns, "1000 req/sec", formatReqSec);
+  gen("#proxy-req-per-sec-chart", proxyColumns, "req/sec");
   gen("#max-latency-chart", maxLatencyColumns, "milliseconds", logScale);
   gen("#max-memory-chart", maxMemoryColumns, "megabytes", formatMB);
   gen("#binary-size-chart", binarySizeColumns, "megabytes", formatMB);
   gen("#thread-count-chart", threadCountColumns, "threads");
   gen("#syscall-count-chart", syscallCountColumns, "syscalls");
+}
+
+export function main(): void {
+  window["chartWidth"] = 800;
+  const overlay = window["document"].getElementById("spinner-overlay");
+
+  function showSpinner() {
+    overlay.style.display = "block";
+  }
+
+  function hideSpinner() {
+    overlay.style.display = "none";
+  }
+
+  function updateCharts() {
+    const u = window.location.hash.match("all") ? "./data.json" : "recent.json";
+
+    showSpinner();
+
+    drawCharts(u)
+      .then(hideSpinner)
+      .catch(hideSpinner);
+  }
+  updateCharts();
+
+  window["onhashchange"] = updateCharts;
 }

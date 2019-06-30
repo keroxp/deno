@@ -6,6 +6,7 @@
     <link rel="shortcut icon" href="favicon.ico">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.14.2/build/styles/default.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.14.2/build/styles/github-gist.min.css">
+    <link rel="stylesheet" media="(prefers-color-scheme: dark)" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.14.2/build/styles/monokai-sublime.min.css">
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.14.2/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.14.2/build/languages/typescript.min.js"></script>
     <link rel="stylesheet" href="style.css" />
@@ -99,12 +100,16 @@ href="https://github.com/denoland/deno_install/blob/master/install.sh">https://d
       <p>Or using PowerShell:</p>
       <pre>iwr <a
 href="https://github.com/denoland/deno_install/blob/master/install.ps1">https://deno.land/x/install/install.ps1</a> | iex</pre>
+      <p>Using <a href="https://brew.sh/">Homebrew</a> (mac):</p>
+      <pre>brew install deno</pre>
+      <p>Using <a href="https://scoop.sh/">Scoop</a> (windows):
+      <pre>scoop install deno</pre>
       <p>See <a href="https://github.com/denoland/deno_install">deno_install</a> for more installation options.</p>
 
       <h2 id="example">Example <a href="#example">#</a></h2>
 
       <p>Try running a simple program:</p>
-      <pre>deno run https://deno.land/welcome.ts</pre>
+      <pre>deno https://deno.land/welcome.ts</pre>
 
       <p>Or a more complex one:</p>
 
@@ -126,6 +131,10 @@ main();</code></pre>
       </p>
 
       <p><a href="https://deno.land/typedoc/">API Reference</a></p>
+
+      <p>
+        <a href="https://github.com/denoland/deno_std">Standard Modules</a>
+      </p>
 
       <p><a href="style_guide.html">Style Guide</a></p>
 

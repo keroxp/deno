@@ -32,7 +32,6 @@ import * as writableStream from "./writable_stream";
 import * as transformStream from "./transform_stream";
 import * as queueingStrategy from "./queuing_strategy";
 import * as request from "./request";
-//import * as response from "./response";
 
 // These imports are not exposed and therefore are fine to just import the
 // symbols required.
@@ -68,8 +67,8 @@ console[consoleTypes.isConsoleInstance] = true;
 window.atob = textEncoding.atob;
 window.btoa = textEncoding.btoa;
 window.fetch = fetchTypes.fetch;
-window.clearTimeout = timers.clearTimer;
-window.clearInterval = timers.clearTimer;
+window.clearTimeout = timers.clearTimeout;
+window.clearInterval = timers.clearInterval;
 window.console = console;
 window.setTimeout = timers.setTimeout;
 window.setInterval = timers.setInterval;
@@ -99,6 +98,8 @@ window.EventInit = event.EventInit;
 export type EventInit = event.EventInit;
 window.Event = event.Event;
 export type Event = event.Event;
+window.EventListener = eventTarget.EventListener;
+export type EventListener = eventTarget.EventListener;
 window.EventTarget = eventTarget.EventTarget;
 export type EventTarget = eventTarget.EventTarget;
 window.URL = url.URL;
@@ -129,11 +130,10 @@ window.ByteLengthQueuingStrategy = queueingStrategy.ByteLengthQueuingStrategy;
 export type ByteLengthQueuingStrategy = domTypes.ByteLengthQueuingStrategyConstructor;
 window.CountQueuingStrategy = queueingStrategy.CountQueuingStrategy;
 export type CountQueuingStrategy = domTypes.CountQueuingStrategyConstructor;
-window.Request = request.Request;
-export type Request = request.Request;
+window.Request = request.Request as domTypes.RequestConstructor;
 
-//window.Response = response.Response;
-//export type Response = response.Response;
+window.Response = fetchTypes.Response;
+export type Response = domTypes.Response;
 
 window.performance = new performanceUtil.Performance();
 

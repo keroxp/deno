@@ -9,6 +9,7 @@ extern crate futures;
 extern crate serde_json;
 extern crate clap;
 extern crate deno;
+extern crate indexmap;
 #[cfg(unix)]
 extern crate nix;
 extern crate rand;
@@ -16,14 +17,16 @@ extern crate rand;
 mod ansi;
 pub mod compiler;
 pub mod deno_dir;
+pub mod deno_error;
+pub mod diagnostics;
 mod dispatch_minimal;
-pub mod errors;
 pub mod flags;
+pub mod fmt_errors;
 mod fs;
 mod global_timer;
 mod http_body;
 mod http_util;
-pub mod js_errors;
+mod import_map;
 pub mod msg;
 pub mod msg_util;
 pub mod ops;
@@ -32,7 +35,9 @@ mod progress;
 mod repl;
 pub mod resolve_addr;
 pub mod resources;
+mod shell;
 mod signal;
+pub mod source_maps;
 mod startup_data;
 pub mod state;
 mod tokio_util;
@@ -40,17 +45,21 @@ mod tokio_write;
 pub mod version;
 pub mod worker;
 
-use crate::errors::RustOrJsError;
+use crate::compiler::bundle_async;
+use crate::deno_error::DenoError;
 use crate::progress::Progress;
 use crate::state::ThreadSafeState;
-use crate::worker::root_specifier_to_url;
 use crate::worker::Worker;
 use deno::v8_set_flags;
+use deno::ModuleSpecifier;
 use flags::DenoFlags;
 use flags::DenoSubcommand;
+use futures::future;
 use futures::lazy;
 use futures::Future;
-use log::{LevelFilter, Metadata, Record};
+use log::Level;
+use log::Metadata;
+use log::Record;
 use std::env;
 
 static LOGGER: Logger = Logger;
@@ -64,90 +73,101 @@ impl log::Log for Logger {
 
   fn log(&self, record: &Record) {
     if self.enabled(record.metadata()) {
-      println!("{} RS - {}", record.level(), record.args());
+      let mut target = record.target().to_string();
+
+      if let Some(line_no) = record.line() {
+        target.push_str(":");
+        target.push_str(&line_no.to_string());
+      }
+
+      println!("{} RS - {} - {}", record.level(), target, record.args());
     }
   }
   fn flush(&self) {}
 }
 
-fn print_err_and_exit(err: RustOrJsError) {
+fn print_err_and_exit(err: DenoError) {
   eprintln!("{}", err.to_string());
   std::process::exit(1);
 }
 
 fn js_check<E>(r: Result<(), E>)
 where
-  E: Into<RustOrJsError>,
+  E: Into<DenoError>,
 {
   if let Err(err) = r {
     print_err_and_exit(err.into());
   }
 }
 
-// TODO(ry) Move this to main.rs
-pub fn print_file_info(worker: &Worker, url: &str) {
-  let maybe_out =
-    worker::fetch_module_meta_data_and_maybe_compile(&worker.state, url, ".");
-  if let Err(err) = maybe_out {
-    println!("{}", err);
-    return;
-  }
-  let out = maybe_out.unwrap();
-
-  println!("{} {}", ansi::bold("local:".to_string()), &(out.filename));
-
-  println!(
-    "{} {}",
-    ansi::bold("type:".to_string()),
-    msg::enum_name_media_type(out.media_type)
-  );
-
-  if out.maybe_output_code_filename.is_some() {
+pub fn print_file_info(
+  worker: Worker,
+  module_specifier: &ModuleSpecifier,
+) -> impl Future<Item = Worker, Error = ()> {
+  state::fetch_module_meta_data_and_maybe_compile_async(
+    &worker.state,
+    module_specifier,
+  ).and_then(move |out| {
     println!(
       "{} {}",
-      ansi::bold("compiled:".to_string()),
-      out.maybe_output_code_filename.as_ref().unwrap(),
+      ansi::bold("local:".to_string()),
+      out.filename.to_str().unwrap()
     );
-  }
 
-  if out.maybe_source_map_filename.is_some() {
     println!(
       "{} {}",
-      ansi::bold("map:".to_string()),
-      out.maybe_source_map_filename.as_ref().unwrap()
+      ansi::bold("type:".to_string()),
+      msg::enum_name_media_type(out.media_type)
     );
-  }
 
-  if let Some(deps) = worker.modules.deps(&out.module_name) {
-    println!("{}{}", ansi::bold("deps:\n".to_string()), deps.name);
-    if let Some(ref depsdeps) = deps.deps {
-      for d in depsdeps {
-        println!("{}", d);
-      }
+    if out.maybe_output_code_filename.is_some() {
+      println!(
+        "{} {}",
+        ansi::bold("compiled:".to_string()),
+        out.maybe_output_code_filename.unwrap().to_str().unwrap(),
+      );
     }
-  } else {
-    println!(
-      "{} cannot retrieve full dependency graph",
-      ansi::bold("deps:".to_string()),
-    );
-  }
+
+    if out.maybe_source_map_filename.is_some() {
+      println!(
+        "{} {}",
+        ansi::bold("map:".to_string()),
+        out.maybe_source_map_filename.unwrap().to_str().unwrap()
+      );
+    }
+
+    if let Some(deps) =
+      worker.state.modules.lock().unwrap().deps(&out.module_name)
+    {
+      println!("{}{}", ansi::bold("deps:\n".to_string()), deps.name);
+      if let Some(ref depsdeps) = deps.deps {
+        for d in depsdeps {
+          println!("{}", d);
+        }
+      }
+    } else {
+      println!(
+        "{} cannot retrieve full dependency graph",
+        ansi::bold("deps:".to_string()),
+      );
+    }
+    Ok(worker)
+  }).map_err(|err| println!("{}", err))
 }
 
 fn create_worker_and_state(
   flags: DenoFlags,
   argv: Vec<String>,
 ) -> (Worker, ThreadSafeState) {
+  use crate::shell::Shell;
+  use std::sync::Arc;
+  use std::sync::Mutex;
+  let shell = Arc::new(Mutex::new(Shell::new()));
   let progress = Progress::new();
-  progress.set_callback(|done, completed, total, msg| {
-    if !done {
-      eprint!("\r[{}/{}] {}", completed, total, msg);
-      eprint!("\x1B[K"); // Clear to end of line.
-      return;
-    }
-
-    // print empty line only if progress bar was used
-    if done && total > 0 {
-      eprintln!();
+  progress.set_callback(move |_done, _completed, _total, status, msg| {
+    if !status.is_empty() {
+      let mut s = shell.lock().unwrap();
+      s.status(status, msg).expect("shell problem");
     }
   });
   let state = ThreadSafeState::new(flags, argv, ops::op_selector_std, progress);
@@ -181,19 +201,21 @@ fn fetch_or_info_command(
     js_check(worker.execute("denoMain()"));
     debug!("main_module {}", main_module);
 
-    let main_url = root_specifier_to_url(&main_module).unwrap();
-
     worker
-      .execute_mod_async(&main_url, true)
-      .and_then(move |worker| {
+      .execute_mod_async(&main_module, true)
+      .map_err(print_err_and_exit)
+      .and_then(move |()| {
         if print_info {
-          print_file_info(&worker, &main_module);
+          future::Either::A(print_file_info(worker, &main_module))
+        } else {
+          future::Either::B(future::ok(worker))
         }
+      }).and_then(|worker| {
         worker.then(|result| {
           js_check(result);
           Ok(())
         })
-      }).map_err(|(err, _worker)| print_err_and_exit(err))
+      })
   });
   tokio_util::run(main_future);
 }
@@ -242,11 +264,28 @@ fn xeval_command(flags: DenoFlags, argv: Vec<String>) {
       .then(|result| {
         js_check(result);
         Ok(())
-      }).map_err(|(err, _worker): (RustOrJsError, Worker)| {
-        print_err_and_exit(err)
-      })
+      }).map_err(|(err, _worker): (DenoError, Worker)| print_err_and_exit(err))
   });
   tokio_util::run(main_future);
+}
+
+fn bundle_command(flags: DenoFlags, argv: Vec<String>) {
+  let (mut _worker, state) = create_worker_and_state(flags, argv);
+
+  let main_module = state.main_module().unwrap();
+  assert!(state.argv.len() >= 3);
+  let out_file = state.argv[2].clone();
+  debug!(">>>>> bundle_async START");
+  let bundle_future = bundle_async(state, main_module.to_string(), out_file)
+    .map_err(|e| {
+      debug!("diagnostics returned, exiting!");
+      eprintln!("\n{}", e.to_string());
+      std::process::exit(1);
+    }).and_then(move |_| {
+      debug!(">>>>> bundle_async END");
+      Ok(())
+    });
+  tokio_util::run(bundle_future);
 }
 
 fn run_repl(flags: DenoFlags, argv: Vec<String>) {
@@ -260,9 +299,7 @@ fn run_repl(flags: DenoFlags, argv: Vec<String>) {
       .then(|result| {
         js_check(result);
         Ok(())
-      }).map_err(|(err, _worker): (RustOrJsError, Worker)| {
-        print_err_and_exit(err)
-      })
+      }).map_err(|(err, _worker): (DenoError, Worker)| print_err_and_exit(err))
   });
   tokio_util::run(main_future);
 }
@@ -277,16 +314,14 @@ fn run_script(flags: DenoFlags, argv: Vec<String>) {
     js_check(worker.execute("denoMain()"));
     debug!("main_module {}", main_module);
 
-    let main_url = root_specifier_to_url(&main_module).unwrap();
-
     worker
-      .execute_mod_async(&main_url, false)
-      .and_then(move |worker| {
+      .execute_mod_async(&main_module, false)
+      .and_then(move |()| {
         worker.then(|result| {
           js_check(result);
           Ok(())
         })
-      }).map_err(|(err, _worker)| print_err_and_exit(err))
+      }).map_err(print_err_and_exit)
   });
   tokio_util::run(main_future);
 }
@@ -303,16 +338,19 @@ fn main() {
     v8_set_flags(v8_flags.clone());
   }
 
-  log::set_max_level(if flags.log_debug {
-    LevelFilter::Debug
-  } else {
-    LevelFilter::Warn
-  });
+  let log_level = match flags.log_level {
+    Some(level) => level,
+    None => Level::Warn,
+  };
+  log::set_max_level(log_level.to_level_filter());
 
   match subcommand {
+    DenoSubcommand::Bundle => bundle_command(flags, argv),
+    DenoSubcommand::Completions => {}
     DenoSubcommand::Eval => eval_command(flags, argv),
     DenoSubcommand::Fetch => fetch_or_info_command(flags, argv, false),
     DenoSubcommand::Info => fetch_or_info_command(flags, argv, true),
+    DenoSubcommand::Install => run_script(flags, argv),
     DenoSubcommand::Repl => run_repl(flags, argv),
     DenoSubcommand::Run => run_script(flags, argv),
     DenoSubcommand::Types => types_command(),
