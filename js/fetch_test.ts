@@ -193,12 +193,14 @@ testPerm({ net: true }, async function fetchInitBlobBody(): Promise<void> {
   assert(response.headers.get("content-type").startsWith("text/javascript"));
 });
 
-testPerm({net: true}, async function fetchReadableStreamBody(): Promise<void> {
+testPerm({ net: true }, async function fetchReadableStreamBody(): Promise<
+  void
+> {
   const data = "hello,deno";
   const stream = new ReadableStream<Uint8Array>({
-    start: (controller) => {
+    start: controller => {
       controller.enqueue(new TextEncoder().encode(data));
-      controller.close()
+      controller.close();
     }
   });
   const response = await fetch("http://localhost:4545/echo_server", {

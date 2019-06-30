@@ -60,7 +60,7 @@ export interface BlobPropertyBag {
   ending?: EndingType;
 }
 
-interface AbortSignalEventMap {
+export interface AbortSignalEventMap {
   abort: ProgressEvent;
 }
 
@@ -142,9 +142,9 @@ export interface URLSearchParams {
   ): void;
 }
 
-export interface EventListener {
-  handleEvent(event: Event): void;
-  readonly callback: (event: Event) => void | null;
+export interface EventListener<E extends Event = Event> {
+  handleEvent(event: E): void;
+  readonly callback: (event: E) => void | null;
   readonly options: boolean | AddEventListenerOptions;
 }
 
@@ -228,7 +228,7 @@ export interface FilePropertyBag extends BlobPropertyBag {
   lastModified?: number;
 }
 
-interface ProgressEvent extends Event {
+export interface ProgressEvent extends Event {
   readonly lengthComputable: boolean;
   readonly loaded: number;
   readonly total: number;
@@ -245,28 +245,11 @@ export interface AddEventListenerOptions extends EventListenerOptions {
 
 export interface AbortSignal extends EventTarget {
   readonly aborted: boolean;
-  onabort: ((this: AbortSignal, ev: ProgressEvent) => any) | null;
-  addEventListener<K extends keyof AbortSignalEventMap>(
-    type: K,
-    listener: (this: AbortSignal, ev: AbortSignalEventMap[K]) => any,
-    options?: boolean | AddEventListenerOptions
-  ): void;
-  addEventListener(
-    type: string,
-    listener: EventListener,
-    options?: boolean | AddEventListenerOptions
-  ): void;
-  removeEventListener<K extends keyof AbortSignalEventMap>(
-    type: K,
-    listener: (this: AbortSignal, ev: AbortSignalEventMap[K]) => any,
-    options?: boolean | EventListenerOptions
-  ): void;
-  removeEventListener(
-    type: string,
-    listener: EventListener,
-    options?: boolean | EventListenerOptions
-  ): void;
+  onabort:
+    | ((this: AbortSignal, ev: AbortSignalEventMap["abort"]) => any)
+    | null;
 }
+
 export interface ReadableStreamConstructor<T = any> extends ReadableStream<T> {
   new (
     underlyingSource?: UnderlyingSource<T>,
@@ -412,12 +395,6 @@ export interface WritableStreamWriter<T> {
   close(): Promise<void>;
 }
 
-export interface ReadableStreamReader<T> {
-  cancel(): Promise<void>;
-  read(): Promise<any>;
-  releaseLock(): void;
-  write(chunk: T): Promise<void>;
-}
 export type WritableStreamDefaultWriter<T> = WritableStreamWriter<T>;
 
 export interface TransformStreamController<T> {

@@ -12,6 +12,8 @@ import { read, close } from "./files";
 import { Buffer } from "./buffer";
 import { FormData } from "./form_data";
 import { URLSearchParams } from "./url_search_params";
+import { ReadableStream } from "./readable_stream";
+import * as writableStream from "./writable_stream";
 
 function getHeaderValueParams(value: string): Map<string, string> {
   const params = new Map();
@@ -30,14 +32,30 @@ function hasHeaderValueOf(s: string, value: string): boolean {
   return new RegExp(`^${value}[\t\s]*;?`).test(s);
 }
 
-class Body implements domTypes.Body, domTypes.ReadableStream, io.ReadCloser {
+class Body
+  implements domTypes.Body, domTypes.ReadableStream<Uint8Array>, io.ReadCloser {
   bodyUsed = false;
   private _bodyPromise: null | Promise<ArrayBuffer> = null;
   private _data: ArrayBuffer | null = null;
   readonly locked: boolean = false; // TODO
   readonly body: null | Body = this;
-
-  constructor(private rid: number, readonly contentType: string) {}
+  private stream: ReadableStream<Uint8Array>;
+  constructor(private rid: number, readonly contentType: string) {
+    this.stream = new ReadableStream<Uint8Array>({
+      pull: async controller => {
+        const buf = new Uint8Array(1024);
+        while (true) {
+          const { eof } = await this.read(buf);
+          if (eof) {
+            break;
+          } else {
+            controller.enqueue(buf);
+          }
+        }
+        controller.close();
+      }
+    });
+  }
 
   private async _bodyBuffer(): Promise<ArrayBuffer> {
     assert(this._bodyPromise == null);
@@ -226,16 +244,51 @@ class Body implements domTypes.Body, domTypes.ReadableStream, io.ReadCloser {
     close(this.rid);
   }
 
-  async cancel(): Promise<void> {
-    return notImplemented();
+  cancel(reason?: any): Promise<void> {
+    return this.stream.cancel(reason);
   }
 
-  getReader(): domTypes.ReadableStreamReader {
-    return notImplemented();
+  getReader<M extends "byob">(params?: {
+    mode?: M;
+  }): {
+    byob: domTypes.ReadableStreamBYOBReader;
+    undefined: domTypes.ReadableStreamReader<Uint8Array>;
+  }[M] {
+    return this.stream.getReader<M>(params);
   }
 
-  tee(): [domTypes.ReadableStream, domTypes.ReadableStream] {
-    return notImplemented();
+  pipeThrough(
+    sources: {
+      writable: domTypes.WritableStream<Uint8Array>;
+      readable: domTypes.ReadableStream<Uint8Array>;
+    },
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?: domTypes.AbortSignal;
+    }
+  ): domTypes.ReadableStream<Uint8Array> {
+    return this.stream.pipeThrough(sources, opts);
+  }
+
+  pipeTo(
+    dest: writableStream.WritableStream<Uint8Array>,
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?: domTypes.AbortSignal;
+    }
+  ): Promise<void> {
+    return this.stream.pipeTo(dest, opts);
+  }
+
+  tee(): [
+    domTypes.ReadableStream<Uint8Array>,
+    domTypes.ReadableStream<Uint8Array>
+  ] {
+    return this.stream.tee();
   }
 
   [Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {

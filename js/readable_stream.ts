@@ -99,7 +99,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     return ReadableStreamCancel(this, reason);
   }
 
-  getReader<M extends "byob">(params: {
+  getReader<M extends "byob">(params?: {
     mode?: M;
   }): {
     byob: domTypes.ReadableStreamBYOBReader;
@@ -108,7 +108,7 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     if (!IsReadableStream(this)) {
       throw new TypeError();
     }
-    if (params.mode === void 0) {
+    if (!params || params.mode === void 0) {
       return AcquireReadableStreamDefaultReader(this);
     }
     if (params.mode === "byob") {
@@ -439,6 +439,9 @@ export async function ReadableStreamPipeTo(
   let shutingDown = false;
   const promsie = defer();
   let abortAlgorithm: domTypes.AbortAlgorithm;
+  let callback = (ev: domTypes.Event): any => {
+    abortAlgorithm();
+  };
   if (signal) {
     abortAlgorithm = async () => {
       let error = new Error("aborted");
@@ -464,14 +467,14 @@ export async function ReadableStreamPipeTo(
         abortAlgorithm();
         return promsie;
       }
-      signal.addEventListener("onabort", abortAlgorithm);
+      signal.addEventListener("onabort", callback);
     };
   }
   const finalize = (error?: any) => {
     WritableStreamDefaultWriterRelease(writer);
     ReadableStreamReaderGenericRelease(reader);
     if (signal) {
-      signal.removeEventListener("onabort", abortAlgorithm);
+      signal.removeEventListener("onabort", callback);
     }
     if (error) {
       promsie.reject(error);

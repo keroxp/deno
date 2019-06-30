@@ -131,8 +131,9 @@ function hasHeaderValueOf(s: string, value: string): boolean {
 export const BodyUsedError =
   "Failed to execute 'clone' on 'Body': body is already used";
 
-export class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array> {
-  protected readonly _stream: domTypes.ReadableStream<Uint8Array> | null = null;
+export class Body
+  implements domTypes.Body, domTypes.ReadableStream<Uint8Array> {
+  protected _stream: domTypes.ReadableStream<Uint8Array> | null = null;
 
   constructor(protected _bodySource: BodySource, readonly contentType: string) {
     validateBodyType(this, _bodySource);
@@ -154,9 +155,8 @@ export class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array> 
           controller.enqueue(_bodySource);
           controller.close();
         }
-      })
+      });
     } else if (_bodySource instanceof Blob) {
-
     }
   }
 
@@ -355,27 +355,52 @@ export class Body implements domTypes.Body, domTypes.ReadableStream<Uint8Array> 
 
   get locked(): boolean {
     return this._stream!.locked;
-  };
+  }
 
   cancel(reason?: any): Promise<void> {
     return this._stream!.cancel();
   }
 
-  getReader<M extends "byob">(params?: { mode?: M }): { byob: domTypes.ReadableStreamBYOBReader; undefined: domTypes.ReadableStreamReader<Uint8Array> }[M] {
+  getReader<M extends "byob">(params?: {
+    mode?: M;
+  }): {
+    byob: domTypes.ReadableStreamBYOBReader;
+    undefined: domTypes.ReadableStreamReader<Uint8Array>;
+  }[M] {
     return this._stream!.getReader(params);
   }
 
-  pipeThrough(sources: { writable: domTypes.WritableStream<Uint8Array>; readable: domTypes.ReadableStream<Uint8Array> }, opts?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean; signal?: domTypes.AbortSignal }): domTypes.ReadableStream<Uint8Array> {
+  pipeThrough(
+    sources: {
+      writable: domTypes.WritableStream<Uint8Array>;
+      readable: domTypes.ReadableStream<Uint8Array>;
+    },
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?: domTypes.AbortSignal;
+    }
+  ): domTypes.ReadableStream<Uint8Array> {
     return this._stream!.pipeThrough(sources, opts);
   }
 
-  pipeTo(dest: domTypes.WritableStream<Uint8Array>, opts?: { preventClose?: boolean; preventAbort?: boolean; preventCancel?: boolean; signal?: domTypes.AbortSignal }): Promise<void> {
+  pipeTo(
+    dest: domTypes.WritableStream<Uint8Array>,
+    opts?: {
+      preventClose?: boolean;
+      preventAbort?: boolean;
+      preventCancel?: boolean;
+      signal?: domTypes.AbortSignal;
+    }
+  ): Promise<void> {
     return this._stream!.pipeTo(dest, opts);
   }
 
-  tee(): [domTypes.ReadableStream<Uint8Array>, domTypes.ReadableStream<Uint8Array>] {
+  tee(): [
+    domTypes.ReadableStream<Uint8Array>,
+    domTypes.ReadableStream<Uint8Array>
+  ] {
     return this._stream!.tee();
   }
-
-
 }
