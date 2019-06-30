@@ -1,5 +1,6 @@
 // Copyright 2018-2019 the Deno authors. All rights reserved. MIT license.
 import { test, assertEquals, assert } from "./test_util.ts";
+import {runIfMain} from "./deps/https/deno.land/std/testing/mod.ts";
 
 test(function fromInit(): void {
   const req = new Request("https://example.com", {
@@ -32,7 +33,7 @@ test(function fromRequest(): void {
 
 test(async function cloneRequestBodyStream(): Promise<void> {
   // hack to get a stream
-  const stream = new Request("", { body: "a test body" }).body;
+  const stream = new Request("", {body: "a test body"}).body;
   const r1 = new Request("https://example.com", {
     body: stream
   });
@@ -41,9 +42,10 @@ test(async function cloneRequestBodyStream(): Promise<void> {
 
   const b1 = await r1.text();
   const b2 = await r2.text();
-
   assertEquals(b1, b2);
 
   // @ts-ignore
   assert(r1._bodySource !== r2._bodySource);
 });
+
+runIfMain(import.meta);

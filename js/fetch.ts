@@ -248,13 +248,14 @@ class Body
     return this.stream.cancel(reason);
   }
 
-  getReader<M extends "byob">(params?: {
-    mode?: M;
-  }): {
-    byob: domTypes.ReadableStreamBYOBReader;
-    undefined: domTypes.ReadableStreamReader<Uint8Array>;
-  }[M] {
-    return this.stream.getReader<M>(params);
+  getReader():domTypes.ReadableStreamReader<Uint8Array>;
+  getReader(params: { mode?: "byob" }): domTypes.ReadableStreamBYOBReader;
+  getReader(params?: { mode?: "byob" }): domTypes.ReadableStreamReader<Uint8Array> | domTypes.ReadableStreamBYOBReader {
+    if (params) {
+      return this.stream.getReader(params);
+    } else {
+      return this.stream.getReader();
+    }
   }
 
   pipeThrough(
@@ -481,8 +482,28 @@ export async function fetch(
         } else if (init.body instanceof DenoBlob) {
           body = init.body[blobBytesSymbol];
           contentType = init.body.type;
+        } else if (init.body instanceof ReadableStream) {
+          const reader = init.body.getReader() as domTypes.ReadableStreamDefaultReader<Uint8Array>;
+          const chunks: Uint8Array[] = [];
+          let byteLength = 0;
+          while (true) {
+            const result = await reader.read();
+            if (result.done) {
+              break;
+            }
+            chunks.push(result.value!);
+            byteLength += result.value!.byteLength;
+          }
+          const dest = new Uint8Array(byteLength);
+          let offs = 0;
+          for (let i = 0 ; i<chunks.length; i++) {
+            const chunk = chunks[i];
+            dest.set(chunk, offs);
+            offs += chunk.byteLength;
+          }
+          body = dest;
         } else {
-          // TODO: FormData, ReadableStream
+          // TODO: FormData,
           notImplemented();
         }
         if (contentType && !headers.has("content-type")) {

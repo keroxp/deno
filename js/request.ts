@@ -2,7 +2,7 @@
 import * as headers from "./headers";
 import * as body from "./body";
 
-import * as streams from "@stardazed/streams";
+import * as streams from "./readable_stream";
 
 import * as domTypes from "./dom_types";
 

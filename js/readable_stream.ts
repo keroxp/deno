@@ -99,12 +99,9 @@ export class ReadableStream<T = any> implements domTypes.ReadableStream<T> {
     return ReadableStreamCancel(this, reason);
   }
 
-  getReader<M extends "byob">(params?: {
-    mode?: M;
-  }): {
-    byob: domTypes.ReadableStreamBYOBReader;
-    undefined: domTypes.ReadableStreamReader<T>;
-  }[M] {
+  getReader(): domTypes.ReadableStreamReader<T>;
+  getReader(params: { mode?: "byob" }): domTypes.ReadableStreamBYOBReader;
+  getReader(params?: { mode?: "byob" }): any {
     if (!IsReadableStream(this)) {
       throw new TypeError();
     }
@@ -238,7 +235,8 @@ export function CreateReadableStream(
   Assert(IsNonNegativeNumber(highWaterMark));
   const stream = Object.create(ReadableStream.prototype);
   InitializeReadableStream(stream);
-  const controller = Object.create(ReadableStreamDefaultController.prototype);
+  // const controller = Object.create(ReadableStreamDefaultController.prototype);
+  const controller = new ReadableStreamDefaultController();
   SetUpReadableStreamDefaultController({
     stream,
     controller,
@@ -265,7 +263,8 @@ export function CreateReadableByteStream(
   }
   const stream = Object.create(ReadableStream.prototype);
   InitializeReadableStream(stream);
-  const controller = Object.create(ReadableByteStreamController.prototype);
+  // const controller = Object.create(ReadableByteStreamController.prototype);
+  const controller = new ReadableByteStreamController(stream);
   SetUpReadableByteStreamController(
     stream,
     controller,
@@ -306,7 +305,7 @@ export function ReadableStreamTee<T>(
   Assert(IsReadableStream(stream));
   Assert(typeof cloneForBranch2 === "boolean");
   const reader = AcquireReadableStreamDefaultReader(stream);
-  let closedOrErrored = false;
+  let reading = false;
   let canceled1 = false;
   let canceled2 = false;
   let reason1 = void 0;
@@ -317,10 +316,14 @@ export function ReadableStreamTee<T>(
   const pullAlgorithm: domTypes.PullAlgorithm = () => {
     return ReadableStreamDefaultReaderRead(reader).then(
       (result: domTypes.ReadableStreamReadResult<T>) => {
+        if (reading) {
+          return Promise.resolve(void 0);
+        }
+        reading = true;
         Assert(typeof result === "object");
-        const { value, done } = result;
+        const { done } = result;
         Assert(typeof done === "boolean");
-        if (done && !closedOrErrored) {
+        if (done) {
           if (!canceled1) {
             ReadableStreamDefaultControllerClose(
               branch1.readableStreamController! as ReadableStreamDefaultController<
@@ -335,11 +338,10 @@ export function ReadableStreamTee<T>(
               >
             );
           }
-        }
-        if (closedOrErrored) {
           return;
         }
-        let [value1, value2] = [value, value];
+        const {value} = result;
+        const [value1, value2] = [value, value];
         if (!canceled2 && cloneForBranch2) {
           //value2 <- ?StructuredDeserialize( ? StructuredSerialize( value2 ), 現在の Realm Record )
         }
@@ -359,6 +361,7 @@ export function ReadableStreamTee<T>(
             value2!
           );
         }
+        return Promise.resolve(void 0)
       }
     );
   };
@@ -398,17 +401,14 @@ export function ReadableStreamTee<T>(
     cancel2Algorithm
   );
   reader.closedPromise.catch(r => {
-    if (!closedOrErrored) {
-      ReadableStreamDefaultControllerError(
-        branch1.readableStreamController! as ReadableStreamDefaultController<T>,
-        r
-      );
-      ReadableStreamDefaultControllerError(
-        branch2.readableStreamController! as ReadableStreamDefaultController<T>,
-        r
-      );
-      closedOrErrored = true;
-    }
+    ReadableStreamDefaultControllerError(
+      branch1.readableStreamController! as ReadableStreamDefaultController<T>,
+      r
+    );
+    ReadableStreamDefaultControllerError(
+      branch2.readableStreamController! as ReadableStreamDefaultController<T>,
+      r
+    );
   });
   return [branch1, branch2];
 }
@@ -723,10 +723,10 @@ export class ReadableStreamDefaultReader<T = any>
 
   constructor(stream: ReadableStream) {
     if (!IsReadableStream(stream)) {
-      throw new TypeError();
+      throw new TypeError("stream is not ReadableStream");
     }
     if (IsReadableStreamLocked(stream)) {
-      throw new TypeError();
+      throw new TypeError("stream is locked");
     }
     //ReadableStreamReaderGenericInitialize(this, stream);
     this.ownerReadableStream = stream;
@@ -968,7 +968,8 @@ export class ReadableStreamDefaultController<T>
   implements domTypes.ReadableStreamController<T> {
   constructor() {
     super();
-    throw new TypeError();
+    // TODO:
+    // throw new TypeError();
   }
   controlledReadableStream?: ReadableStream;
   strategySizeAlgorithm?: (chunk: T) => number;
@@ -1232,7 +1233,7 @@ export function SetUpReadableStreamDefaultControllerFromUnderlyingSource(params:
 }) {
   const { stream, underlyingSource, highWaterMark, sizeAlgorithm } = params;
   Assert(underlyingSource !== void 0);
-  const controller = Object.create(ReadableStreamDefaultController.prototype);
+  const controller = new ReadableStreamDefaultController();
   const startAlgorithm = () =>
     InvokeOrNoop(underlyingSource, "start", controller);
   const pullAlgorithm = CreateAlgorithmFromUnderlyingMethod(
@@ -1368,9 +1369,10 @@ export function ReadableStreamBYOBReaderRead(
 
 export class ReadableByteStreamController extends ReadableStreamControllerBase
   implements domTypes.ReadableStreamController<ArrayBufferView> {
-  constructor() {
+  constructor(stream: ReadableStream) {
     super();
-    throw new TypeError();
+    this.controlledReadableByteStream = stream;
+    // throw new TypeError();
   }
 
   controlledReadableByteStream: ReadableStream;
@@ -1442,16 +1444,16 @@ export class ReadableByteStreamController extends ReadableStreamControllerBase
     ReadableByteStreamControllerError(this, e);
   }
 
-  [CancelSteps] = (reason?: any): Promise<any> => {
+  [CancelSteps](reason?: any): Promise<any> {
     ResetQueue(this);
     const result = this.cancelAlgorithm!(reason);
     ReadableByteStreamControllerClearAlgorithms(this);
     return result;
   };
 
-  [PullSteps] = (
+  [PullSteps](
     forAuthorCode?: boolean
-  ): Promise<domTypes.ReadableStreamReadResult<ArrayBufferView>> => {
+  ): Promise<domTypes.ReadableStreamReadResult<ArrayBufferView>> {
     const stream = this.controlledReadableByteStream;
     Assert(ReadableStreamHasDefaultReader(stream));
     if (this.queueTotalSize! > 0) {
@@ -2125,7 +2127,8 @@ export function SetUpReadableByteStreamControllerFromUnderlyingSource<T>(
   highWaterMark: number
 ) {
   Assert(underlyingByteSource !== void 0);
-  const controller = Object.create(ReadableByteStreamController.prototype);
+  // const controller = Object.create(ReadableByteStreamController.prototype);
+  const controller = new ReadableByteStreamController(stream);
   const startAlgorithm = () =>
     InvokeOrNoop(underlyingByteSource, "start", controller);
   const pullAlgorithm = CreateAlgorithmFromUnderlyingMethod(

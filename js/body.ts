@@ -94,8 +94,10 @@ function bufferFromStream(stream: ReadableStreamReader): Promise<ArrayBuffer> {
                 parts.push(new Uint8Array(value));
               } else if (!value) {
                 // noop for undefined
+              } else if (value instanceof Uint8Array) {
+                parts.push(value);
               } else {
-                reject("unhandled type on stream read");
+                reject("unhandled type on stream read: " + typeof value);
               }
 
               return pump();
@@ -361,13 +363,14 @@ export class Body
     return this._stream!.cancel();
   }
 
-  getReader<M extends "byob">(params?: {
-    mode?: M;
-  }): {
-    byob: domTypes.ReadableStreamBYOBReader;
-    undefined: domTypes.ReadableStreamReader<Uint8Array>;
-  }[M] {
-    return this._stream!.getReader(params);
+  getReader(): domTypes.ReadableStreamReader<Uint8Array>;
+  getReader(params: { mode?: "byob" }): domTypes.ReadableStreamBYOBReader;
+  getReader(params?: { mode?: "byob" }): domTypes.ReadableStreamReader<Uint8Array> | domTypes.ReadableStreamBYOBReader {
+    if (params) {
+      return this._stream!.getReader(params);
+    } else {
+      return this._stream!.getReader();
+    }
   }
 
   pipeThrough(

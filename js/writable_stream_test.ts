@@ -6,7 +6,7 @@ import { ReadableStream } from "./readable_stream";
 test(async function testWritableStream() {
   const src = [0, 1, 2, 3, 4, 5];
   let i = 0;
-  const chunks = [];
+  const chunks: number[] = [];
   const readable = new ReadableStream({
     pull: controller => {
       controller.enqueue(src[i]);

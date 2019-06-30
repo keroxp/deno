@@ -29,7 +29,7 @@ type BodyInit =
   | BufferSource
   | FormData
   | URLSearchParams
-  | ReadableStream
+  | ReadableStream<Uint8Array>
   | string;
 export type RequestInfo = Request | string;
 type ReferrerPolicy =
@@ -261,12 +261,10 @@ export interface ReadableStreamConstructor<T = any> extends ReadableStream<T> {
 export interface ReadableStream<T = any> {
   readonly locked: boolean;
   cancel(reason?: any): Promise<void>;
-  getReader<M extends "byob">(params?: {
-    mode?: M;
-  }): {
-    byob: ReadableStreamBYOBReader;
-    undefined: ReadableStreamReader<T>;
-  }[M];
+  getReader(): ReadableStreamReader<T>;
+  getReader(params: {
+    mode?: "byob";
+  }): ReadableStreamBYOBReader
   pipeThrough(
     sources: {
       writable: WritableStream<T>;
