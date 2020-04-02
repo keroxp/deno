@@ -1,4 +1,5 @@
 // Copyright 2018-2020 the Deno authors. All rights reserved. MIT license.
+import { encode } from "../encoding/utf8.ts";
 import { BufReader, BufWriter } from "../io/bufio.ts";
 import { assert } from "../testing/asserts.ts";
 import {
@@ -187,7 +188,17 @@ export class Server implements AsyncIterable<ServerRequest> {
           timeout = keepAlive.timeout * TimeUnits.seconds;
         }
         req = await readRequest(conn, { w, r, timeout });
-      } catch (e) {
+      } catch (error) {
+        if (
+          error instanceof Deno.errors.InvalidData ||
+          error instanceof Deno.errors.UnexpectedEof
+        ) {
+          // An error was thrown while parsing request headers.
+          await writeResponse(w, {
+            status: 400,
+            body: encode(`${error.message}\r\n\r\n`),
+          });
+        }
         break;
       }
 
